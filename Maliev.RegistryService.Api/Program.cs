@@ -124,3 +124,4 @@ public partial class Program
         public static partial void ServiceStarted(ILogger logger, string serviceName);
     }
 }
+// Trigger CI
