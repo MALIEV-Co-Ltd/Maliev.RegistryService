@@ -1,0 +1,41 @@
+openapi: 3.0.1
+info:
+  title: Maliev.RegistryService API
+  version: v1.0
+paths:
+  /registry/v1/thai/addresses/autocomplete:
+    get:
+      summary: Autocomplete Thai addresses
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: List of matching address suggestions
+  /registry/v1/thai/companies/lookup:
+    get:
+      summary: Lookup Thai companies (DBD Proxy)
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: List of matching company profiles
+security:
+  - BearerAuth: []
