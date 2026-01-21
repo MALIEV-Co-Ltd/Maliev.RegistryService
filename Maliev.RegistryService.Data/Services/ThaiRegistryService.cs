@@ -23,51 +23,47 @@ public class ThaiRegistryService : IThaiRegistryService
     {
         if (string.IsNullOrWhiteSpace(query)) return Enumerable.Empty<ThaiLocation>();
 
-        bool isNumeric = query.All(char.IsDigit);
-        bool isThai = query.Any(c => c >= 0x0E00 && c <= 0x0E7F);
-
-        // We use pg_trgm similarity() for ranking if needed, 
-        // but simple filtering with prioritization as per requirements:
-        // 1. Postal Code (if numeric)
-        // 2. English match
-        // 3. Thai match
-
-        var baseQuery = _context.ThaiLocations.AsNoTracking();
-
-        if (isNumeric)
+        if (query.All(char.IsDigit))
         {
-            return await baseQuery
-                .Where(l => l.PostalCode.StartsWith(query))
-                .OrderBy(l => l.PostalCode)
-                .Take(limit)
+            // If it's a postal code, prioritize that search
+            var postalSql = @"
+                SELECT *
+                FROM ""ThaiLocations""
+                WHERE ""PostalCode"" LIKE {0}
+                ORDER BY ""PostalCode""
+                LIMIT {1}";
+            
+            return await _context.ThaiLocations
+                .FromSqlRaw(postalSql, $"{query}%", limit)
                 .ToListAsync();
         }
 
-        // For text search, we use OR logic across fields but prioritize English per requirements
-        // Note: In a real high-performance scenario, we'd use raw SQL for similarity ordering
-        var results = await baseQuery
-            .Where(l => 
-                EF.Functions.ILike(l.SubDistrictEn, $"%{query}%") ||
-                EF.Functions.ILike(l.DistrictEn, $"%{query}%") ||
-                EF.Functions.ILike(l.ProvinceEn, $"%{query}%") ||
-                EF.Functions.ILike(l.SubDistrictTh, $"%{query}%") ||
-                EF.Functions.ILike(l.DistrictTh, $"%{query}%") ||
-                EF.Functions.ILike(l.ProvinceTh, $"%{query}%"))
+        // For text search, use pg_trgm similarity() for ranking.
+        // Leverage greatest similarity across subdistrict, district, province in both languages.
+        var textSql = @"
+            SELECT *,
+                   GREATEST(
+                       similarity(""SubDistrictEn"", {0}),
+                       similarity(""DistrictEn"", {0}),
+                       similarity(""ProvinceEn"", {0}),
+                       similarity(""SubDistrictTh"", {0}),
+                       similarity(""DistrictTh"", {0}),
+                       similarity(""ProvinceTh"", {0})
+                   ) as search_score
+            FROM ""ThaiLocations""
+            WHERE ""SubDistrictEn"" ILIKE {1}
+               OR ""DistrictEn"" ILIKE {1}
+               OR ""ProvinceEn"" ILIKE {1}
+               OR ""SubDistrictTh"" ILIKE {1}
+               OR ""DistrictTh"" ILIKE {1}
+               OR ""ProvinceTh"" ILIKE {1}
+            ORDER BY search_score DESC
+            LIMIT {2}";
+
+        var results = await _context.ThaiLocations
+            .FromSqlRaw(textSql, query, $"%{query}%", limit)
             .ToListAsync();
 
-        return results
-            .OrderByDescending(l => IsEnglishMatch(l, query))
-            .ThenByDescending(l => IsThaiMatch(l, query))
-            .Take(limit);
+        return results;
     }
-
-    private bool IsEnglishMatch(ThaiLocation l, string query) =>
-        l.SubDistrictEn.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-        l.DistrictEn.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-        l.ProvinceEn.Contains(query, StringComparison.OrdinalIgnoreCase);
-
-    private bool IsThaiMatch(ThaiLocation l, string query) =>
-        l.SubDistrictTh.Contains(query) ||
-        l.DistrictTh.Contains(query) ||
-        l.ProvinceTh.Contains(query);
 }

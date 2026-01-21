@@ -76,30 +76,29 @@ public class DbdProxyService : IDbdProxyService
         try
         {
             await _concurrencySemaphore.WaitAsync();
-            var url = "https://www.dataforthai.com/api/company";
-            _logger.LogInformation("Fetching company data via curl for {Query}", query);
+            _logger.LogInformation("Fetching company data for {Query}", query);
 
-            var startInfo = new System.Diagnostics.ProcessStartInfo
+            var content = new FormUrlEncodedContent(new[]
             {
-                FileName = "curl",
-                Arguments = $"-s -m 5 -X POST \"{url}\" " +
-                            $"-H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\" " +
-                            $"-H \"X-Requested-With: XMLHttpRequest\" " +
-                            $"-H \"Content-Type: application/x-www-form-urlencoded; charset=UTF-8\" " +
-                            $"-H \"Accept: */*\" " +
-                            $"-d \"mode=search_comp&data[searchtext]={HttpUtility.UrlEncode(query)}\"",
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                UseShellExecute = false,
-                CreateNoWindow = true
+                new KeyValuePair<string, string>("mode", "search_comp"),
+                new KeyValuePair<string, string>("data[searchtext]", query)
+            });
+            
+            // Note: HttpClient is shared, so we shouldn't modify DefaultRequestHeaders here if possible.
+            // But since this is a dedicated client for this service, it's safer to use HttpRequestMessage.
+            var request = new HttpRequestMessage(HttpMethod.Post, "https://www.dataforthai.com/api/company")
+            {
+                Content = content
             };
+            
+            request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
+            request.Headers.Add("X-Requested-With", "XMLHttpRequest");
+            request.Headers.Accept.ParseAdd("*/*");
 
-            using var process = System.Diagnostics.Process.Start(startInfo);
-            if (process == null) throw new Exception("Failed to start curl process");
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
 
-            var json = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
-
+            var json = await response.Content.ReadAsStringAsync();
             var searchResults = ParseSearchJson(json, limit);
             
             // Fetch details in parallel
@@ -108,7 +107,7 @@ public class DbdProxyService : IDbdProxyService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to fetch from DataForThai.");
+            _logger.LogError(ex, "Failed to fetch from DataForThai for {Query}", query);
             throw;
         }
         finally
@@ -124,22 +123,13 @@ public class DbdProxyService : IDbdProxyService
             await _concurrencySemaphore.WaitAsync();
             var detailUrl = $"https://www.dataforthai.com/company/{baseProfile.TaxId}/printview";
             
-            var startInfo = new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "curl",
-                Arguments = $"-s -m 5 -L \"{detailUrl}\" " +
-                            $"-H \"User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36\"",
-                RedirectStandardOutput = true,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                StandardOutputEncoding = System.Text.Encoding.UTF8
-            };
+            var request = new HttpRequestMessage(HttpMethod.Get, detailUrl);
+            request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
 
-            using var process = System.Diagnostics.Process.Start(startInfo);
-            if (process == null) return baseProfile;
+            var response = await _httpClient.SendAsync(request);
+            response.EnsureSuccessStatusCode();
 
-            var html = await process.StandardOutput.ReadToEndAsync();
-            await process.WaitForExitAsync();
+            var html = await response.Content.ReadAsStringAsync();
             _concurrencySemaphore.Release();
 
             var doc = new HtmlDocument();
