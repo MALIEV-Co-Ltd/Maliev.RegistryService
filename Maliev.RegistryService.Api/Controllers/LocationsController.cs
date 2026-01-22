@@ -71,7 +71,7 @@ public class LocationsController : ControllerBase
     /// </summary>
     /// <param name="location">The location to create.</param>
     /// <returns>The created location.</returns>
-    [RequirePermission(RegistryPermissions.RegistryManage)]
+    [RequirePermission(RegistryPermissions.LocationsCreate)]
     [HttpPost]
     public async Task<ActionResult<ApiResponse<ThaiLocation>>> Create([FromBody] ThaiLocation location)
     {
@@ -85,7 +85,7 @@ public class LocationsController : ControllerBase
     /// <param name="id">The location ID.</param>
     /// <param name="location">The updated location data.</param>
     /// <returns>The updated location.</returns>
-    [RequirePermission(RegistryPermissions.RegistryManage)]
+    [RequirePermission(RegistryPermissions.LocationsUpdate)]
     [HttpPut("{id:guid}")]
     public async Task<ActionResult<ApiResponse<ThaiLocation>>> Update(Guid id, [FromBody] ThaiLocation location)
     {
@@ -110,7 +110,7 @@ public class LocationsController : ControllerBase
     /// </summary>
     /// <param name="id">The location ID.</param>
     /// <returns>Success indicator.</returns>
-    [RequirePermission(RegistryPermissions.RegistryManage)]
+    [RequirePermission(RegistryPermissions.LocationsDelete)]
     [HttpDelete("{id:guid}")]
     public async Task<ActionResult<ApiResponse<bool>>> Delete(Guid id)
     {

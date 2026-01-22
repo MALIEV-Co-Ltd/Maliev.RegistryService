@@ -28,7 +28,13 @@ public static class RegistryPredefinedRoles
     public static readonly RoleDef Admin = new(
         "roles.registry.admin",
         "Administrative access to registry service",
-        [RegistryPermissions.LocationsRead, RegistryPermissions.CompaniesRead, RegistryPermissions.RegistryManage]
+        [
+            RegistryPermissions.LocationsRead, 
+            RegistryPermissions.CompaniesRead, 
+            RegistryPermissions.LocationsCreate,
+            RegistryPermissions.LocationsUpdate,
+            RegistryPermissions.LocationsDelete
+        ]
     );
 
     /// <summary>

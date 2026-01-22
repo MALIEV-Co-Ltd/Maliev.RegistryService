@@ -18,9 +18,19 @@ public static class RegistryPermissions
     public const string CompaniesRead = "registry.companies.read";
 
     /// <summary>
-    /// Permission to manage (create, update, delete) registry data.
+    /// Permission to create new registry data.
     /// </summary>
-    public const string RegistryManage = "registry.manage";
+    public const string LocationsCreate = "registry.locations.create";
+
+    /// <summary>
+    /// Permission to update existing registry data.
+    /// </summary>
+    public const string LocationsUpdate = "registry.locations.update";
+
+    /// <summary>
+    /// Permission to delete registry data.
+    /// </summary>
+    public const string LocationsDelete = "registry.locations.delete";
 
     /// <summary>
     /// Gets all permissions with their descriptions.
@@ -29,6 +39,8 @@ public static class RegistryPermissions
     {
         { LocationsRead, "Allows reading and searching Thai location data" },
         { CompaniesRead, "Allows performing DBD company registry lookups" },
-        { RegistryManage, "Allows managing (creating, updating, deleting) registry data" }
+        { LocationsCreate, "Allows creating new Thai location data" },
+        { LocationsUpdate, "Allows updating existing Thai location data" },
+        { LocationsDelete, "Allows deleting Thai location data" }
     };
 }

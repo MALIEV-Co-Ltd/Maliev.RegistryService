@@ -40,7 +40,12 @@ public class LocationsCrudTests : IClassFixture<RegistryServiceTestFactory>
     public async Task Manage_FullCrudCycle_Success()
     {
         // Arrange
-        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.RegistryManage, RegistryPermissions.LocationsRead]);
+        var client = _factory.CreateAuthenticatedClient(permissions: [
+            RegistryPermissions.LocationsCreate, 
+            RegistryPermissions.LocationsUpdate, 
+            RegistryPermissions.LocationsDelete, 
+            RegistryPermissions.LocationsRead
+        ]);
         var newLocation = new ThaiLocation
         {
             Id = Guid.NewGuid(),
