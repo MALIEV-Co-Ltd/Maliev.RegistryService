@@ -1,4 +1,6 @@
+using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api.Infrastructure;
+
 using Maliev.RegistryService.Data.Entities;
 using Maliev.RegistryService.Data.Models;
 using Maliev.RegistryService.Data.Services;
@@ -26,25 +28,12 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
     public async Task Autocomplete_WithValidQuery_ReturnsSuccess()
     {
         // Arrange
-        var client = _factory.CreateAuthenticatedClient(permissions: ["Registry.Read"]);
-        using (var context = _factory.CreateDbContext())
-        {
-            await _factory.CleanDatabaseAsync();
-            context.ThaiLocations.Add(new ThaiLocation 
-            { 
-                PostalCode = "10110", 
-                ProvinceEn = "Bangkok", 
-                DistrictEn = "Khlong Toei", 
-                SubDistrictEn = "Khlong Toei",
-                ProvinceTh = "กรุงเทพ",
-                DistrictTh = "คลองเตย",
-                SubDistrictTh = "คลองเตย"
-            });
-            await context.SaveChangesAsync();
-        }
-
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
+        // Note: Data is seeded automatically via EF Migrations in the TestFactory
+        
         // Act
         var response = await client.GetAsync("/registry/v1/thai/addresses/autocomplete?query=Bangkok");
+
 
         // Assert
         response.EnsureSuccessStatusCode();
@@ -75,7 +64,8 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
             });
         });
         
-        var token = _factory.CreateTestJwtToken(permissions: ["Registry.Read"]);
+        var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
+
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
 
@@ -112,7 +102,8 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
             });
         });
 
-        var token = _factory.CreateTestJwtToken(permissions: ["Registry.Read"]);
+        var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
+
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
 
@@ -127,10 +118,71 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
     }
 
     [Fact]
+    public async Task Autocomplete_WithPostalCode_ReturnsSuccess()
+    {
+        // Arrange
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
+        
+        // Act
+        var response = await client.GetAsync("/registry/v1/thai/addresses/autocomplete?query=10200");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse<IEnumerable<ThaiLocation>>>();
+        Assert.True(result!.Success);
+        Assert.NotEmpty(result.Data!);
+        Assert.All(result.Data!, l => Assert.StartsWith("10200", l.PostalCode));
+    }
+
+    [Fact]
+    public async Task GetById_WhenNotFound_ReturnsNotFound()
+    {
+        // Arrange
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
+        var id = Guid.NewGuid();
+
+        // Act
+        var response = await client.GetAsync($"/registry/v1/thai/addresses/{id}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CompanyLookup_UpstreamError_ReturnsServiceUnavailable()
+    {
+        // Arrange
+        var query = "error";
+        var mockDbdService = new Mock<IDbdProxyService>();
+        mockDbdService.Setup(s => s.LookupAsync(query, It.IsAny<int>()))
+            .ThrowsAsync(new Exception("Upstream failure"));
+
+        var factory = _factory.WithWebHostBuilder(builder => 
+        {
+            builder.ConfigureTestServices(services => 
+            {
+                services.AddScoped(_ => mockDbdService.Object);
+            });
+        });
+        
+        var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
+
+        var client = factory.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+        // Act
+        var response = await client.GetAsync($"/registry/v1/thai/companies/lookup?query={query}");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Fact]
     public async Task Autocomplete_WithInvalidQuery_ReturnsBadRequest()
     {
         // Arrange
-        var client = _factory.CreateAuthenticatedClient(permissions: ["Registry.Read"]);
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
+
 
         // Act
         var response = await client.GetAsync("/registry/v1/thai/addresses/autocomplete?query=");

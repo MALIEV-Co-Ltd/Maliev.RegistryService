@@ -1,7 +1,10 @@
 using Asp.Versioning;
+using Maliev.Aspire.ServiceDefaults.Authorization;
+using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api.Infrastructure;
 using Maliev.RegistryService.Data.Models;
 using Maliev.RegistryService.Data.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Maliev.RegistryService.Api.Controllers;
@@ -31,6 +34,7 @@ public class CompaniesController : ControllerBase
     /// <param name="query">The search query.</param>
     /// <param name="limit">The maximum number of results to return.</param>
     /// <returns>A list of matching company profiles.</returns>
+    [RequirePermission(RegistryPermissions.CompaniesRead)]
     [HttpGet("lookup")]
     [ResponseCache(Duration = 300, VaryByQueryKeys = new[] { "query", "limit" })]
     public async Task<ActionResult<ApiResponse<IEnumerable<CompanyProfile>>>> Lookup(

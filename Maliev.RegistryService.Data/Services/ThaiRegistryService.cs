@@ -8,6 +8,10 @@ namespace Maliev.RegistryService.Data.Services;
 public interface IThaiRegistryService
 {
     Task<IEnumerable<ThaiLocation>> AutocompleteAsync(string query, int limit);
+    Task<ThaiLocation?> GetByIdAsync(Guid id);
+    Task<ThaiLocation> CreateAsync(ThaiLocation location);
+    Task<bool> UpdateAsync(ThaiLocation location);
+    Task<bool> DeleteAsync(Guid id);
 }
 
 public class ThaiRegistryService : IThaiRegistryService
@@ -17,6 +21,47 @@ public class ThaiRegistryService : IThaiRegistryService
     public ThaiRegistryService(RegistryDbContext context)
     {
         _context = context;
+    }
+
+    public async Task<ThaiLocation?> GetByIdAsync(Guid id)
+    {
+        return await _context.ThaiLocations.FindAsync(id);
+    }
+
+    public async Task<ThaiLocation> CreateAsync(ThaiLocation location)
+    {
+        if (location.Id == Guid.Empty)
+        {
+            location.Id = Guid.NewGuid();
+        }
+
+        _context.ThaiLocations.Add(location);
+        await _context.SaveChangesAsync();
+        return location;
+    }
+
+    public async Task<bool> UpdateAsync(ThaiLocation location)
+    {
+        var existing = await _context.ThaiLocations.FindAsync(location.Id);
+        if (existing == null) return false;
+
+        _context.Entry(existing).CurrentValues.SetValues(location);
+        await _context.SaveChangesAsync();
+        
+        // Reload to get any database-generated values or ensure state is fresh
+        await _context.Entry(existing).ReloadAsync();
+        
+        return true;
+    }
+
+    public async Task<bool> DeleteAsync(Guid id)
+    {
+        var location = await _context.ThaiLocations.FindAsync(id);
+        if (location == null) return false;
+
+        _context.ThaiLocations.Remove(location);
+        await _context.SaveChangesAsync();
+        return true;
     }
 
     public async Task<IEnumerable<ThaiLocation>> AutocompleteAsync(string query, int limit)

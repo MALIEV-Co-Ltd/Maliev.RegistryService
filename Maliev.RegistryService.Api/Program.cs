@@ -1,5 +1,7 @@
 using Maliev.RegistryService.Data.Context;
 using Maliev.RegistryService.Data.Services;
+using Maliev.Aspire.ServiceDefaults;
+using Maliev.RegistryService.Api;
 
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
@@ -38,13 +40,8 @@ try
     // JWT Authentication (tests override via PostConfigureAll with dynamic RSA keys)
     builder.AddJwtAuthentication();
 
-    // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
-    if (!builder.Environment.IsProduction())
-    {
-        builder.AddStandardOpenApi(
-            title: "MALIEV Registry Service API",
-            description: "Thai business registry and location data service. Provides Thai administrative divisions (provinces, districts, subdistricts), postal codes, DBD company lookups, and address autocomplete functionality.");
-    }
+    // --- Authorization & Permissions ---
+    builder.Services.AddPermissionAuthorization();
 
     // Add Domain Services
     builder.Services.AddScoped<IThaiRegistryService, ThaiRegistryService>();
@@ -57,8 +54,17 @@ try
         CookieContainer = new System.Net.CookieContainer()
     });
 
+    // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
+    if (!builder.Environment.IsProduction())
+    {
+        builder.AddStandardOpenApi(
+            title: "MALIEV Registry Service API",
+            description: "Thai business registry and location data service. Provides Thai administrative divisions (provinces, districts, subdistricts), postal codes, DBD company lookups, and address autocomplete functionality.");
+    }
+
     // IAM Registration
-    builder.AddIAMServiceClient("registry");
+    builder.AddIAMServiceClient(RegistryConstants.ServiceName);
+    builder.Services.AddIAMRegistration<Maliev.RegistryService.Api.Services.RegistryIAMRegistrationService>(RegistryConstants.ServiceName);
 
     builder.Services.AddControllers();
 
@@ -68,6 +74,9 @@ try
 
     // Run database migrations on startup
     await app.MigrateDatabaseAsync<RegistryDbContext>();
+
+    // Seed production location data on startup
+    // Note: Seeding is now handled by EF Migrations
 
     app.UseStandardMiddleware();
     if (!app.Environment.IsDevelopment())

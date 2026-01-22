@@ -1,5 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
-using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
+using System;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
@@ -18,8 +18,7 @@ namespace Maliev.RegistryService.Data.Migrations
                 name: "ThaiLocations",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "integer", nullable: false)
-                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
                     PostalCode = table.Column<string>(type: "character varying(10)", maxLength: 10, nullable: false),
                     SubDistrictTh = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
                     DistrictTh = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
@@ -79,7 +78,24 @@ namespace Maliev.RegistryService.Data.Migrations
                 column: "SubDistrictTh")
                 .Annotation("Npgsql:IndexMethod", "gin")
                 .Annotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
+
+            // Seed Thai Locations from embedded resource
+            var assembly = typeof(InitialCreate).Assembly;
+            var resourceName = "Maliev.RegistryService.Data.SeedData.thai_locations.sql";
+            using (var stream = assembly.GetManifestResourceStream(resourceName))
+            {
+                if (stream == null)
+                {
+                    throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
+                }
+                using (var reader = new System.IO.StreamReader(stream))
+                {
+                    var sql = reader.ReadToEnd();
+                    migrationBuilder.Sql(sql);
+                }
+            }
         }
+
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)

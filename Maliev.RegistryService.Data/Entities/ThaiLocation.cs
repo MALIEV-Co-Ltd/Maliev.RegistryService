@@ -4,7 +4,8 @@ namespace Maliev.RegistryService.Data.Entities;
 
 public class ThaiLocation
 {
-    public int Id { get; set; }
+    public Guid Id { get; set; }
+
     public string PostalCode { get; set; } = string.Empty;
     public string SubDistrictTh { get; set; } = string.Empty;
     public string DistrictTh { get; set; } = string.Empty;
