@@ -2,6 +2,7 @@ using Maliev.RegistryService.Data.Context;
 using Maliev.RegistryService.Data.Services;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.RegistryService.Api;
+using Microsoft.EntityFrameworkCore;
 
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
@@ -26,14 +27,14 @@ try
     builder.AddPostgresDbContext<RegistryDbContext>(connectionName: "RegistryDbContext"); // PostgreSQL with retry logic
 
     // Add Cache Service (standardized via ServiceDefaults)
-    builder.AddRedisDistributedCache(instanceName: "registry:");
+    builder.AddStandardCache("registry:"); // Redis + in-memory fallback, memory-optimized
     builder.Services.AddMemoryCache();
 
     // MassTransit with RabbitMQ
     builder.AddMassTransitWithRabbitMq();
 
     // --- API Configuration ---
-    builder.AddDefaultCors(); // CORS from CORS:AllowedOrigins config
+    builder.AddStandardCors(); // CORS with fail-fast validation
     builder.AddDefaultApiVersioning(); // API versioning with URL segment reader
     builder.Services.AddResponseCaching();
 
@@ -45,15 +46,39 @@ try
 
     // Add Domain Services
     builder.Services.AddScoped<IThaiRegistryService, ThaiRegistryService>();
+    
+    // Add HttpClient for DBD proxy with cookie handling for Cloudflare
     builder.Services.AddHttpClient<IDbdProxyService, DbdProxyService>(client =>
     {
-        client.Timeout = TimeSpan.FromSeconds(15);
-    }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+        client.Timeout = TimeSpan.FromSeconds(30);
+        
+        // Use realistic browser headers to avoid Cloudflare detection
+        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
+        client.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
+        client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9,th;q=0.8");
+        client.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
+        client.DefaultRequestHeaders.Add("Connection", "keep-alive");
+        client.DefaultRequestHeaders.Add("Sec-Ch-Ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
+        client.DefaultRequestHeaders.Add("Sec-Ch-Ua-Mobile", "?0");
+        client.DefaultRequestHeaders.Add("Sec-Ch-Ua-Platform", "\"Windows\"");
+        client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "empty");
+        client.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
+        client.DefaultRequestHeaders.Add("Sec-Fetch-Site", "same-origin");
+    })
+    .ConfigurePrimaryHttpMessageHandler(() =>
     {
-        UseCookies = true,
-        CookieContainer = new System.Net.CookieContainer()
-    });
-
+        // Configure HttpClientHandler with CookieContainer to maintain session cookies
+        // This is critical for Cloudflare's "Just a moment..." challenge
+        var handler = new HttpClientHandler
+        {
+            UseCookies = true,
+            CookieContainer = new System.Net.CookieContainer(),
+            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate | System.Net.DecompressionMethods.Brotli
+        };
+        return handler;
+    })
+    .AddStandardResilienceHandler(); // Standard retry, circuit breaker, and timeout policies
+    
     // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
     if (!builder.Environment.IsProduction())
     {
@@ -76,7 +101,39 @@ try
     await app.MigrateDatabaseAsync<RegistryDbContext>();
 
     // Seed production location data on startup
-    // Note: Seeding is now handled by EF Migrations
+    if (app.Environment.IsDevelopment())
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<RegistryDbContext>();
+            
+            if (!await context.ThaiLocations.AnyAsync() || args.Contains("--seed"))
+            {
+                logger.LogInformation("Seeding Thai locations from SQL file...");
+                var sqlPath = Path.Combine(AppContext.BaseDirectory, "SeedData", "thai_locations.sql");
+                if (!File.Exists(sqlPath)) 
+                {
+                    sqlPath = Path.Combine(builder.Environment.ContentRootPath, "..", "Maliev.RegistryService.Data", "SeedData", "thai_locations.sql");
+                }
+                
+                if (File.Exists(sqlPath))
+                {
+                    var sql = await File.ReadAllTextAsync(sqlPath);
+                    await context.Database.ExecuteSqlRawAsync(sql);
+                    logger.LogInformation("Thai locations seeded successfully.");
+                }
+                else
+                {
+                    logger.LogWarning("Seed data file not found at {Path}", sqlPath);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to seed database");
+        }
+    }
 
     app.UseStandardMiddleware();
     if (!app.Environment.IsDevelopment())

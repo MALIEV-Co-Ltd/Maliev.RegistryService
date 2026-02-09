@@ -24,7 +24,7 @@ public class LocationsCrudTests : IClassFixture<RegistryServiceTestFactory>
         var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
         
         // Use a known ID from the seed data (Bangkok, Phra Nakhon, Phra Borom Maha Ratchawang)
-        var id = new Guid("ec9a6fd1-d909-4ad7-b475-ea60adf0e414");
+        var id = new Guid("f101c65d-2f19-422e-a002-b9ac52aa8c25");
 
         // Act
         var response = await client.GetAsync($"/registry/v1/thai/addresses/{id}");

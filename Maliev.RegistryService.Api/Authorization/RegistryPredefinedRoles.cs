@@ -19,7 +19,7 @@ public static class RegistryPredefinedRoles
     public static readonly RoleDef Viewer = new(
         "roles.registry.viewer",
         "Read-only access to all registry data",
-        [RegistryPermissions.LocationsRead, RegistryPermissions.CompaniesRead]
+        [RegistryPermissions.LocationsRead]
     );
 
     /// <summary>
@@ -30,7 +30,6 @@ public static class RegistryPredefinedRoles
         "Administrative access to registry service",
         [
             RegistryPermissions.LocationsRead, 
-            RegistryPermissions.CompaniesRead, 
             RegistryPermissions.LocationsCreate,
             RegistryPermissions.LocationsUpdate,
             RegistryPermissions.LocationsDelete

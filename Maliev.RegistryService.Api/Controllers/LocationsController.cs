@@ -50,6 +50,39 @@ public class LocationsController : ControllerBase
     }
 
     /// <summary>
+    /// Multi-field autocomplete for Thai addresses using composite scoring.
+    /// Accepts multiple address fields and returns best matches using weighted similarity.
+    /// </summary>
+    /// <param name="postalCode">Postal code (5 digits).</param>
+    /// <param name="district">Sub-district name (ตำบล/แขวง) in Thai or English.</param>
+    /// <param name="city">District/city name (อำเภอ/เขต) in Thai or English.</param>
+    /// <param name="province">Province name (จังหวัด) in Thai or English.</param>
+    /// <param name="limit">Maximum number of results (default: 3).</param>
+    /// <returns>Locations ranked by composite similarity score (postal code 40%, district 30%, city 20%, province 10%).</returns>
+    [RequirePermission(RegistryPermissions.LocationsRead)]
+    [HttpGet("autocomplete-multi")]
+    public async Task<ActionResult<ApiResponse<IEnumerable<ThaiLocation>>>> AutocompleteMultiField(
+        [FromQuery] string? postalCode,
+        [FromQuery] string? district,
+        [FromQuery] string? city,
+        [FromQuery] string? province,
+        [FromQuery] int limit = 3)
+    {
+        if (string.IsNullOrWhiteSpace(postalCode) && 
+            string.IsNullOrWhiteSpace(district) && 
+            string.IsNullOrWhiteSpace(city) && 
+            string.IsNullOrWhiteSpace(province))
+        {
+            return BadRequest(ApiResponse<IEnumerable<ThaiLocation>>.CreateError("At least one field must be provided."));
+        }
+        
+        var results = await _registryService.AutocompleteMultiFieldAsync(
+            postalCode, district, city, province, limit);
+        
+        return Ok(ApiResponse<IEnumerable<ThaiLocation>>.CreateSuccess(results));
+    }
+
+    /// <summary>
     /// Get a specific Thai location by ID.
     /// </summary>
     /// <param name="id">The location ID.</param>

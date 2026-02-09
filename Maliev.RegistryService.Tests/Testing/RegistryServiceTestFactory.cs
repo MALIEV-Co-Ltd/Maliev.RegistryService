@@ -15,7 +15,10 @@ using Testcontainers.PostgreSql;
 using Testcontainers.RabbitMq;
 using Testcontainers.Redis;
 using Xunit;
+using Maliev.Aspire.ServiceDefaults.IAM;
+using Moq;
 using MassTransit;
+using Microsoft.AspNetCore.Http;
 
 namespace Maliev.RegistryService.Tests.Testing;
 
@@ -183,6 +186,14 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
 
             // Add MassTransit test harness for testing message publishing/consuming
             services.AddMassTransitTestHarness();
+
+            // Mock IAM service client to check permissions against JWT claims in integration tests
+            services.AddScoped<IIamServiceClient>(sp => {
+                var mockIam = new Mock<IIamServiceClient>();
+                mockIam.Setup(x => x.CheckPermissionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(false); // Return false to force fallback to JWT claims in tests
+                return mockIam.Object;
+            });
         });
     }
 

@@ -43,81 +43,6 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
     }
 
     [Fact]
-    public async Task CompanyLookup_WithValidTaxId_ReturnsSuccess()
-    {
-        // Arrange
-        var query = "1234567890123";
-        var mockResults = new List<CompanyProfile> 
-        { 
-            new CompanyProfile(query, "Test Company", "Test Company EN", "Active", "https://www.dataforthai.com") 
-        };
-
-        var mockDbdService = new Mock<IDbdProxyService>();
-        mockDbdService.Setup(s => s.LookupAsync(query, It.IsAny<int>()))
-            .ReturnsAsync(mockResults);
-
-        var factory = _factory.WithWebHostBuilder(builder => 
-        {
-            builder.ConfigureTestServices(services => 
-            {
-                services.AddScoped(_ => mockDbdService.Object);
-            });
-        });
-        
-        var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
-
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
-
-        // Act
-        var response = await client.GetAsync($"/registry/v1/thai/companies/lookup?query={query}");
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<ApiResponse<IEnumerable<CompanyProfile>>>();
-        Assert.True(result!.Success);
-        Assert.NotEmpty(result.Data!);
-        Assert.Equal("https://www.dataforthai.com", result.Data!.First().Source);
-    }
-
-    [Fact]
-    public async Task CompanyLookup_WhenCached_ReturnsSuccess()
-    {
-        // Arrange
-        var query = "9999999999999";
-        var mockResults = new List<CompanyProfile> 
-        { 
-            new CompanyProfile(query, "Cached Company", "Cached Company EN", "Active", "https://www.dataforthai.com") 
-        };
-
-        var mockDbdService = new Mock<IDbdProxyService>();
-        mockDbdService.Setup(s => s.LookupAsync(query, It.IsAny<int>()))
-            .ReturnsAsync(mockResults);
-
-        var factory = _factory.WithWebHostBuilder(builder => 
-        {
-            builder.ConfigureTestServices(services => 
-            {
-                services.AddScoped(_ => mockDbdService.Object);
-            });
-        });
-
-        var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
-
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
-
-        // Act - Call twice to simulate usage
-        await client.GetAsync($"/registry/v1/thai/companies/lookup?query={query}");
-        var response = await client.GetAsync($"/registry/v1/thai/companies/lookup?query={query}");
-
-        // Assert
-        response.EnsureSuccessStatusCode();
-        var result = await response.Content.ReadFromJsonAsync<ApiResponse<IEnumerable<CompanyProfile>>>();
-        Assert.True(result!.Success);
-    }
-
-    [Fact]
     public async Task Autocomplete_WithPostalCode_ReturnsSuccess()
     {
         // Arrange
@@ -146,35 +71,6 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
 
         // Assert
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
-    }
-
-    [Fact]
-    public async Task CompanyLookup_UpstreamError_ReturnsServiceUnavailable()
-    {
-        // Arrange
-        var query = "error";
-        var mockDbdService = new Mock<IDbdProxyService>();
-        mockDbdService.Setup(s => s.LookupAsync(query, It.IsAny<int>()))
-            .ThrowsAsync(new Exception("Upstream failure"));
-
-        var factory = _factory.WithWebHostBuilder(builder => 
-        {
-            builder.ConfigureTestServices(services => 
-            {
-                services.AddScoped(_ => mockDbdService.Object);
-            });
-        });
-        
-        var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
-
-        var client = factory.CreateClient();
-        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
-
-        // Act
-        var response = await client.GetAsync($"/registry/v1/thai/companies/lookup?query={query}");
-
-        // Assert
-        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
     [Fact]
@@ -209,5 +105,78 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
         }
         
         Assert.Fail("None of the health check endpoints returned OK.");
+    }
+
+    [Fact]
+    public async Task CompanySearch_WithValidQuery_ReturnsSuccess()
+    {
+        // Arrange
+        var mockDbdService = new Mock<IDbdProxyService>();
+        mockDbdService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(new List<CompanyProfile>
+            {
+                new CompanyProfile("1", "ยังดำเนินกิจการอยู่", "0105552101137", 
+                    "มาลี ฟาซาด เอ็นจิเนียริ่ง เซอร์วิส", 
+                    "ประกอบกิจการรับเป็นที่ปรึกษา", 
+                    "5", null, "บริษัท มาลี ฟาซาด เอ็นจิเนียริ่ง เซอร์วิส จำกัด")
+            });
+
+        // Create a modified factory with the mock service
+        var modifiedFactory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                // Remove existing IDbdProxyService registrations
+                var descriptors = services.Where(
+                    d => d.ServiceType == typeof(IDbdProxyService)).ToList();
+                foreach (var descriptor in descriptors)
+                {
+                    services.Remove(descriptor);
+                }
+
+                // Add mock service
+                services.AddScoped(_ => mockDbdService.Object);
+            });
+        });
+
+        // Create authenticated client from the modified factory
+        var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
+        var client = modifiedFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+        // Act
+        var response = await client.GetAsync("/registry/v1/thai/companies/search?query=มาลีฟ");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse<IEnumerable<CompanyProfile>>>();
+        Assert.True(result!.Success);
+        Assert.NotEmpty(result.Data!);
+    }
+
+    [Fact]
+    public async Task CompanySearch_WithEmptyQuery_ReturnsBadRequest()
+    {
+        // Arrange
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.CompaniesRead]);
+
+        // Act
+        var response = await client.GetAsync("/registry/v1/thai/companies/search?query=");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CompanySearch_WithoutPermission_ReturnsUnauthorized()
+    {
+        // Arrange
+        var client = _factory.CreateAuthenticatedClient(permissions: []);
+
+        // Act
+        var response = await client.GetAsync("/registry/v1/thai/companies/search?query=test");
+
+        // Assert
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
 }
