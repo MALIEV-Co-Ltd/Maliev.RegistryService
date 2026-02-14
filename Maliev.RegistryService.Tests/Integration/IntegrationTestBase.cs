@@ -7,7 +7,7 @@ namespace Maliev.RegistryService.Tests.Integration;
 
 public class IntegrationTestBase : IAsyncLifetime
 {
-    protected readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder("postgres:18-alpine")
+    protected readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder().WithName("postgres:18-alpine")
         .Build();
 
     protected RegistryDbContext CreateDbContext()
