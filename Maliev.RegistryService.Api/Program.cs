@@ -46,33 +46,21 @@ try
 
     // Add Domain Services
     builder.Services.AddScoped<IThaiRegistryService, ThaiRegistryService>();
-    
-    // Add HttpClient for DBD proxy with cookie handling for Cloudflare
+
+    // Configure BDEX API options from user secrets
+    builder.Services.Configure<Maliev.RegistryService.Data.Configuration.BdexApiOptions>(
+        builder.Configuration.GetSection(Maliev.RegistryService.Data.Configuration.BdexApiOptions.SectionName));
+
+    // Add HttpClient for BDEX API (api.dbd.go.th)
     builder.Services.AddHttpClient<IDbdProxyService, DbdProxyService>(client =>
     {
         client.Timeout = TimeSpan.FromSeconds(30);
-        
-        // Use realistic browser headers to avoid Cloudflare detection
-        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36");
-        client.DefaultRequestHeaders.Add("Accept", "application/json, text/plain, */*");
-        client.DefaultRequestHeaders.Add("Accept-Language", "en-US,en;q=0.9,th;q=0.8");
-        client.DefaultRequestHeaders.Add("Accept-Encoding", "gzip, deflate, br");
-        client.DefaultRequestHeaders.Add("Connection", "keep-alive");
-        client.DefaultRequestHeaders.Add("Sec-Ch-Ua", "\"Google Chrome\";v=\"131\", \"Chromium\";v=\"131\", \"Not_A Brand\";v=\"24\"");
-        client.DefaultRequestHeaders.Add("Sec-Ch-Ua-Mobile", "?0");
-        client.DefaultRequestHeaders.Add("Sec-Ch-Ua-Platform", "\"Windows\"");
-        client.DefaultRequestHeaders.Add("Sec-Fetch-Dest", "empty");
-        client.DefaultRequestHeaders.Add("Sec-Fetch-Mode", "cors");
-        client.DefaultRequestHeaders.Add("Sec-Fetch-Site", "same-origin");
+        client.DefaultRequestHeaders.Add("Accept", "application/json");
     })
     .ConfigurePrimaryHttpMessageHandler(() =>
     {
-        // Configure HttpClientHandler with CookieContainer to maintain session cookies
-        // This is critical for Cloudflare's "Just a moment..." challenge
         var handler = new HttpClientHandler
         {
-            UseCookies = true,
-            CookieContainer = new System.Net.CookieContainer(),
             AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate | System.Net.DecompressionMethods.Brotli
         };
         return handler;

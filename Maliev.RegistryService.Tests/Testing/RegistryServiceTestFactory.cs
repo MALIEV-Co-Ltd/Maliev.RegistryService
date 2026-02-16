@@ -44,6 +44,8 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
 
         // Set environment variable EARLY so Program.cs picks it up during WebApplication.CreateBuilder
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+        Environment.SetEnvironmentVariable("CORS__AllowedOrigins__0", "http://localhost:3000");
+        Environment.SetEnvironmentVariable("CORS_ALLOWED_ORIGINS", "http://localhost:3000");
     }
 
     public async Task InitializeAsync()
@@ -53,13 +55,13 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         {
             if (!_containersStarted)
             {
-                _postgresContainer = new PostgreSqlBuilder().WithImage("postgres:18-alpine")
+                _postgresContainer = new PostgreSqlBuilder("postgres:18-alpine")
                     .Build();
 
-                _redisContainer = new RedisBuilder().WithImage("redis:8.4-alpine")
+                _redisContainer = new RedisBuilder("redis:8.4-alpine")
                     .Build();
 
-                _rabbitmqContainer = new RabbitMqBuilder().WithImage("rabbitmq:4.2-alpine")
+                _rabbitmqContainer = new RabbitMqBuilder("rabbitmq:4.2-alpine")
                     .Build();
 
                 // Start all containers in parallel
@@ -159,6 +161,8 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
                 ["Jwt:PublicKey"] = publicKeyBase64,
                 ["Jwt:Issuer"] = "test-issuer",
                 ["Jwt:Audience"] = "test-audience",
+                ["CORS:AllowedOrigins:0"] = "http://localhost:3000",
+                ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000",
                 ["ConnectionStrings:RegistryDbContext"] = _postgresContainer!.GetConnectionString(),
                 ["ConnectionStrings:redis"] = _redisContainer!.GetConnectionString(),
                 ["ConnectionStrings:rabbitmq"] = _rabbitmqContainer!.GetConnectionString()

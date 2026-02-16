@@ -1,7 +1,9 @@
+using Maliev.RegistryService.Data.Configuration;
 using Maliev.RegistryService.Data.Models;
 using Maliev.RegistryService.Data.Services;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Moq;
 using System.Text;
 using System.Text.Json;
@@ -11,6 +13,16 @@ namespace Maliev.RegistryService.Tests.Unit;
 
 public class DbdProxyServiceTests
 {
+    private static IOptions<BdexApiOptions> CreateDefaultOptions()
+    {
+        return Options.Create(new BdexApiOptions
+        {
+            BaseUrl = "https://api.dbd.go.th",
+            ConsumerKey = "test-key",
+            ConsumerSecret = "test-secret"
+        });
+    }
+
     [Fact]
     public async Task SearchCompaniesAsync_WithEmptyQuery_ReturnsEmpty()
     {
@@ -18,7 +30,8 @@ public class DbdProxyServiceTests
         var httpClient = new HttpClient();
         var cacheMock = new Mock<IDistributedCache>();
         var loggerMock = new Mock<ILogger<DbdProxyService>>();
-        var service = new DbdProxyService(httpClient, cacheMock.Object, loggerMock.Object);
+        var options = CreateDefaultOptions();
+        var service = new DbdProxyService(httpClient, cacheMock.Object, options, loggerMock.Object);
 
         // Act
         var result = await service.SearchCompaniesAsync("");
@@ -34,20 +47,18 @@ public class DbdProxyServiceTests
         var httpClient = new HttpClient();
         var cacheMock = new Mock<IDistributedCache>();
         var loggerMock = new Mock<ILogger<DbdProxyService>>();
+        var options = CreateDefaultOptions();
 
-        var cachedProfiles = new List<CompanyProfile>
-        {
-            new CompanyProfile("1", "Active", "1234567890123", "Test Company", "Test Business", "5", null, "Test Full Name")
-        };
-        var cachedJson = JsonSerializer.Serialize(cachedProfiles);
+        var cachedProfile = new CompanyProfile("1", "Active", "1234567890123", "Test Company", "Test Business", "5", null, "Test Full Name");
+        var cachedJson = JsonSerializer.Serialize(cachedProfile);
 
-        cacheMock.Setup(c => c.GetAsync("dbd:search:test", It.IsAny<CancellationToken>()))
+        cacheMock.Setup(c => c.GetAsync("bdex:company:1234567890123", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Encoding.UTF8.GetBytes(cachedJson));
 
-        var service = new DbdProxyService(httpClient, cacheMock.Object, loggerMock.Object);
+        var service = new DbdProxyService(httpClient, cacheMock.Object, options, loggerMock.Object);
 
         // Act
-        var result = await service.SearchCompaniesAsync("test");
+        var result = await service.SearchCompaniesAsync("1234567890123");
 
         // Assert
         Assert.Single(result);
@@ -61,7 +72,8 @@ public class DbdProxyServiceTests
         var httpClient = new HttpClient();
         var cacheMock = new Mock<IDistributedCache>();
         var loggerMock = new Mock<ILogger<DbdProxyService>>();
-        var service = new DbdProxyService(httpClient, cacheMock.Object, loggerMock.Object);
+        var options = CreateDefaultOptions();
+        var service = new DbdProxyService(httpClient, cacheMock.Object, options, loggerMock.Object);
 
         // Act
         var result = await service.SearchCompaniesAsync("   ");
