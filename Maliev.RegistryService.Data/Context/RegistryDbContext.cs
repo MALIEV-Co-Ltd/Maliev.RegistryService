@@ -20,7 +20,7 @@ public class RegistryDbContext : DbContext
         modelBuilder.Entity<ThaiLocation>(entity =>
         {
             entity.HasKey(e => e.Id);
-            
+
             entity.Property(e => e.PostalCode).HasMaxLength(10).IsRequired();
             entity.Property(e => e.SubDistrictTh).HasMaxLength(200).IsRequired();
             entity.Property(e => e.DistrictTh).HasMaxLength(200).IsRequired();

@@ -109,4 +109,42 @@ public class ThaiRegistryServiceTests
         // Assert
         Assert.Empty(result);
     }
+
+    [Fact]
+    public async Task GetByIdAsync_WhenNotFound_ReturnsNull()
+    {
+        using var context = new RegistryDbContext(_options);
+        var service = new ThaiRegistryService(context);
+        var result = await service.GetByIdAsync(Guid.NewGuid());
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_WhenNotFound_ReturnsFalse()
+    {
+        using var context = new RegistryDbContext(_options);
+        var service = new ThaiRegistryService(context);
+        var missing = new ThaiLocation
+        {
+            Id = Guid.NewGuid(),
+            PostalCode = "00000",
+            SubDistrictEn = "X",
+            DistrictEn = "X",
+            ProvinceEn = "X",
+            SubDistrictTh = "X",
+            DistrictTh = "X",
+            ProvinceTh = "X"
+        };
+        var result = await service.UpdateAsync(missing);
+        Assert.False(result);
+    }
+
+    [Fact]
+    public async Task DeleteAsync_WhenNotFound_ReturnsFalse()
+    {
+        using var context = new RegistryDbContext(_options);
+        var service = new ThaiRegistryService(context);
+        var result = await service.DeleteAsync(Guid.NewGuid());
+        Assert.False(result);
+    }
 }

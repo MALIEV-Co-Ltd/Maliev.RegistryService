@@ -22,7 +22,7 @@ public class LocationsCrudTests : IClassFixture<RegistryServiceTestFactory>
     {
         // Arrange
         var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
-        
+
         // Use a known ID from the seed data (Bangkok, Phra Nakhon, Phra Borom Maha Ratchawang)
         var id = new Guid("f101c65d-2f19-422e-a002-b9ac52aa8c25");
 
@@ -41,9 +41,9 @@ public class LocationsCrudTests : IClassFixture<RegistryServiceTestFactory>
     {
         // Arrange
         var client = _factory.CreateAuthenticatedClient(permissions: [
-            RegistryPermissions.LocationsCreate, 
-            RegistryPermissions.LocationsUpdate, 
-            RegistryPermissions.LocationsDelete, 
+            RegistryPermissions.LocationsCreate,
+            RegistryPermissions.LocationsUpdate,
+            RegistryPermissions.LocationsDelete,
             RegistryPermissions.LocationsRead
         ]);
         var newLocation = new ThaiLocation
@@ -67,7 +67,7 @@ public class LocationsCrudTests : IClassFixture<RegistryServiceTestFactory>
         // 2. Read
         var getResponse = await client.GetAsync($"/registry/v1/thai/addresses/{newLocation.Id}");
         getResponse.EnsureSuccessStatusCode();
-        
+
         // 3. Update
         newLocation.PostalCode = "88888";
         var updateResponse = await client.PutAsJsonAsync($"/registry/v1/thai/addresses/{newLocation.Id}", newLocation);

@@ -29,9 +29,5 @@
     <PackageReference Include="NPOI" Version="2.7.5" />
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Include="SeedData\thai_locations.sql" />
-  </ItemGroup>
-
 </Project>
 

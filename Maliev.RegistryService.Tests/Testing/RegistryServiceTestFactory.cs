@@ -140,7 +140,7 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         // Export RSA public key for JWT validation in PEM format (then Base64 encoded for AddJwtAuthentication)
         var publicKeyPem = _testRsa.ExportRSAPublicKeyPem();
         var publicKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(publicKeyPem));
-        
+
         Environment.SetEnvironmentVariable("Jwt__PublicKey", publicKeyBase64);
         Environment.SetEnvironmentVariable("Jwt:PublicKey", publicKeyBase64);
 
@@ -192,7 +192,8 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
             services.AddMassTransitTestHarness();
 
             // Mock IAM service client to check permissions against JWT claims in integration tests
-            services.AddScoped<IIamServiceClient>(sp => {
+            services.AddScoped<IIamServiceClient>(sp =>
+            {
                 var mockIam = new Mock<IIamServiceClient>();
                 mockIam.Setup(x => x.CheckPermissionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
                     .ReturnsAsync(false); // Return false to force fallback to JWT claims in tests

@@ -1,4 +1,5 @@
 using System;
+using Maliev.RegistryService.Data.SeedData;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -78,22 +79,6 @@ namespace Maliev.RegistryService.Data.Migrations
                 column: "SubDistrictTh")
                 .Annotation("Npgsql:IndexMethod", "gin")
                 .Annotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
-
-            // Seed Thai Locations from embedded resource
-            var assembly = typeof(InitialCreate).Assembly;
-            var resourceName = "Maliev.RegistryService.Data.SeedData.thai_locations.sql";
-            using (var stream = assembly.GetManifestResourceStream(resourceName))
-            {
-                if (stream == null)
-                {
-                    throw new InvalidOperationException($"Embedded resource '{resourceName}' not found.");
-                }
-                using (var reader = new System.IO.StreamReader(stream))
-                {
-                    var sql = reader.ReadToEnd();
-                    migrationBuilder.Sql(sql);
-                }
-            }
         }
 
 

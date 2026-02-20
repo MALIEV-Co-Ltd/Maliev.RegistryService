@@ -22,7 +22,7 @@ public class IntegrationTestBase : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await _dbContainer.StartAsync();
-        
+
         using var context = CreateDbContext();
         await context.Database.EnsureCreatedAsync();
     }

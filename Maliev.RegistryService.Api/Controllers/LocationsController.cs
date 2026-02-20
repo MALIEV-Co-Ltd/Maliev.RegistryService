@@ -37,7 +37,7 @@ public class LocationsController : ControllerBase
     [RequirePermission(RegistryPermissions.LocationsRead)]
     [HttpGet("autocomplete")]
     public async Task<ActionResult<ApiResponse<IEnumerable<ThaiLocation>>>> Autocomplete(
-        [FromQuery] string query, 
+        [FromQuery] string query,
         [FromQuery] int limit = 10)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -68,17 +68,17 @@ public class LocationsController : ControllerBase
         [FromQuery] string? province,
         [FromQuery] int limit = 3)
     {
-        if (string.IsNullOrWhiteSpace(postalCode) && 
-            string.IsNullOrWhiteSpace(district) && 
-            string.IsNullOrWhiteSpace(city) && 
+        if (string.IsNullOrWhiteSpace(postalCode) &&
+            string.IsNullOrWhiteSpace(district) &&
+            string.IsNullOrWhiteSpace(city) &&
             string.IsNullOrWhiteSpace(province))
         {
             return BadRequest(ApiResponse<IEnumerable<ThaiLocation>>.CreateError("At least one field must be provided."));
         }
-        
+
         var results = await _registryService.AutocompleteMultiFieldAsync(
             postalCode, district, city, province, limit);
-        
+
         return Ok(ApiResponse<IEnumerable<ThaiLocation>>.CreateSuccess(results));
     }
 

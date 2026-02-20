@@ -21,7 +21,7 @@ public class RegistryIAMRegistrationServiceTests
         // We use reflection to access the protected GetPermissions if needed, 
         // but here we can just test the public behavior or use a wrapper.
         // For simplicity, we check if the permissions match the RegistryPermissions class.
-        
+
         // Since it's protected, we'll use a testable subclass if needed, 
         // but RegistryIAMRegistrationService IS already the subclass.
         var permissions = typeof(RegistryIAMRegistrationService)

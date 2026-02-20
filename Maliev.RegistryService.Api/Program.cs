@@ -1,4 +1,5 @@
 using Maliev.RegistryService.Data.Context;
+using Maliev.RegistryService.Data.SeedData;
 using Maliev.RegistryService.Data.Services;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.RegistryService.Api;
@@ -66,7 +67,7 @@ try
         return handler;
     })
     .AddStandardResilienceHandler(); // Standard retry, circuit breaker, and timeout policies
-    
+
     // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
     if (!builder.Environment.IsProduction())
     {
@@ -95,31 +96,27 @@ try
         {
             using var scope = app.Services.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<RegistryDbContext>();
-            
+
             if (!await context.ThaiLocations.AnyAsync() || args.Contains("--seed"))
             {
-                logger.LogInformation("Seeding Thai locations from SQL file...");
-                var sqlPath = Path.Combine(AppContext.BaseDirectory, "SeedData", "thai_locations.sql");
-                if (!File.Exists(sqlPath)) 
+                logger.LogInformation("Seeding Thai locations...");
+
+                if (args.Contains("--seed"))
                 {
-                    sqlPath = Path.Combine(builder.Environment.ContentRootPath, "..", "Maliev.RegistryService.Data", "SeedData", "thai_locations.sql");
+                    context.ThaiLocations.RemoveRange(context.ThaiLocations);
+                    await context.SaveChangesAsync();
                 }
-                
-                if (File.Exists(sqlPath))
-                {
-                    var sql = await File.ReadAllTextAsync(sqlPath);
-                    await context.Database.ExecuteSqlRawAsync(sql);
-                    logger.LogInformation("Thai locations seeded successfully.");
-                }
-                else
-                {
-                    logger.LogWarning("Seed data file not found at {Path}", sqlPath);
-                }
+
+                var locations = ThaiLocationData.GetLocations();
+                await context.ThaiLocations.AddRangeAsync(locations);
+                await context.SaveChangesAsync();
+
+                logger.LogInformation("Seeded {Count} Thai locations successfully.", locations.Length);
             }
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to seed database");
+            logger.LogError(ex, "Failed to seed Thai locations");
         }
     }
 

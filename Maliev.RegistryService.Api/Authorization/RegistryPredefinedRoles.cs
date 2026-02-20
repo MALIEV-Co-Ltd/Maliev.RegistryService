@@ -29,7 +29,7 @@ public static class RegistryPredefinedRoles
         "roles.registry.admin",
         "Administrative access to registry service",
         [
-            RegistryPermissions.LocationsRead, 
+            RegistryPermissions.LocationsRead,
             RegistryPermissions.LocationsCreate,
             RegistryPermissions.LocationsUpdate,
             RegistryPermissions.LocationsDelete

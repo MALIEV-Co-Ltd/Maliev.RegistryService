@@ -12,7 +12,7 @@ public class RegistryDbContextFactory : IDesignTimeDbContextFactory<RegistryDbCo
     public RegistryDbContext CreateDbContext(string[] args)
     {
         var optionsBuilder = new DbContextOptionsBuilder<RegistryDbContext>();
-        
+
         // Use a dummy connection string for design-time operations (migration generation).
         // Actual connection strings are provided at runtime via Aspire/Environment variables.
         optionsBuilder.UseNpgsql("Host=localhost;Database=design_time_dummy;Username=postgres;Password=postgres");

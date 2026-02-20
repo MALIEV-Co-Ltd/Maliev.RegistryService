@@ -19,12 +19,12 @@ public class ModelIntegrityTests
             .Options;
 
         using var context = new RegistryDbContext(options);
-        
+
         // This helper (available in EF Core 9.0+) checks if the current code 
         // matches the last snapshot in the Migrations folder.
         var hasChanges = context.Database.HasPendingModelChanges();
 
-        Assert.False(hasChanges, 
+        Assert.False(hasChanges,
             "The EF Core model for 'RegistryDbContext' has changed but no migration has been added. " +
             "Run 'dotnet ef migrations add <Name> --project Maliev.RegistryService.Data --startup-project Maliev.RegistryService.Api' to fix this.");
     }

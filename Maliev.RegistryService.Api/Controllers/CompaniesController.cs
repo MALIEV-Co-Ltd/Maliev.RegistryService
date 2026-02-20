@@ -67,7 +67,7 @@ public class CompaniesController : ControllerBase
         try
         {
             var results = await _dbdProxyService.SearchCompaniesAsync(query, cancellationToken);
-            
+
             // Apply limit on the results
             var limitedResults = results.Take(limit);
 

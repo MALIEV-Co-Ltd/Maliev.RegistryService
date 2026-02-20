@@ -30,7 +30,7 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
         // Arrange
         var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
         // Note: Data is seeded automatically via EF Migrations in the TestFactory
-        
+
         // Act
         var response = await client.GetAsync("/registry/v1/thai/addresses/autocomplete?query=Bangkok");
 
@@ -47,7 +47,7 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
     {
         // Arrange
         var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
-        
+
         // Act
         var response = await client.GetAsync("/registry/v1/thai/addresses/autocomplete?query=10200");
 
@@ -103,7 +103,7 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
                 return; // Success
             }
         }
-        
+
         Assert.Fail("None of the health check endpoints returned OK.");
     }
 
@@ -115,9 +115,9 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
         mockDbdService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<CompanyProfile>
             {
-                new CompanyProfile("1", "ยังดำเนินกิจการอยู่", "0105552101137", 
-                    "มาลี ฟาซาด เอ็นจิเนียริ่ง เซอร์วิส", 
-                    "ประกอบกิจการรับเป็นที่ปรึกษา", 
+                new CompanyProfile("1", "ยังดำเนินกิจการอยู่", "0105552101137",
+                    "มาลี ฟาซาด เอ็นจิเนียริ่ง เซอร์วิส",
+                    "ประกอบกิจการรับเป็นที่ปรึกษา",
                     "5", null, "บริษัท มาลี ฟาซาด เอ็นจิเนียริ่ง เซอร์วิส จำกัด")
             });
 
@@ -178,5 +178,101 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
 
         // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CompanySearch_WithLimitZero_ReturnsBadRequest()
+    {
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.CompaniesRead]);
+        var response = await client.GetAsync("/registry/v1/thai/companies/search?query=test&limit=0");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CompanySearch_WithLimitOver100_ReturnsBadRequest()
+    {
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.CompaniesRead]);
+        var response = await client.GetAsync("/registry/v1/thai/companies/search?query=test&limit=101");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CompanySearch_WhenServiceThrowsInvalidOperationException_ReturnsServiceUnavailable()
+    {
+        var mockDbdService = new Mock<IDbdProxyService>();
+        mockDbdService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new InvalidOperationException("Service unavailable"));
+
+        var modifiedFactory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                var descriptors = services.Where(d => d.ServiceType == typeof(IDbdProxyService)).ToList();
+                foreach (var descriptor in descriptors) services.Remove(descriptor);
+                services.AddScoped(_ => mockDbdService.Object);
+            });
+        });
+
+        var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
+        var client = modifiedFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+        var response = await client.GetAsync("/registry/v1/thai/companies/search?query=test");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task CompanySearch_WhenServiceThrowsUnexpectedException_ReturnsInternalServerError()
+    {
+        var mockDbdService = new Mock<IDbdProxyService>();
+        mockDbdService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new Exception("Unexpected error"));
+
+        var modifiedFactory = _factory.WithWebHostBuilder(builder =>
+        {
+            builder.ConfigureTestServices(services =>
+            {
+                var descriptors = services.Where(d => d.ServiceType == typeof(IDbdProxyService)).ToList();
+                foreach (var descriptor in descriptors) services.Remove(descriptor);
+                services.AddScoped(_ => mockDbdService.Object);
+            });
+        });
+
+        var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
+        var client = modifiedFactory.CreateClient();
+        client.DefaultRequestHeaders.Add("Authorization", $"Bearer {token}");
+
+        var response = await client.GetAsync("/registry/v1/thai/companies/search?query=test");
+
+        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AutocompleteMultiField_WithAllEmptyParams_ReturnsBadRequest()
+    {
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
+        var response = await client.GetAsync("/registry/v1/thai/addresses/autocomplete-multi");
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task AutocompleteMultiField_WithPostalCode_ReturnsSuccess()
+    {
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
+        var response = await client.GetAsync("/registry/v1/thai/addresses/autocomplete-multi?postalCode=10200");
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse<IEnumerable<ThaiLocation>>>();
+        Assert.True(result!.Success);
+    }
+
+    [Fact]
+    public async Task AutocompleteMultiField_WithDistrict_ReturnsSuccess()
+    {
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
+        var response = await client.GetAsync("/registry/v1/thai/addresses/autocomplete-multi?district=Bangkok");
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse<IEnumerable<ThaiLocation>>>();
+        Assert.True(result!.Success);
     }
 }
