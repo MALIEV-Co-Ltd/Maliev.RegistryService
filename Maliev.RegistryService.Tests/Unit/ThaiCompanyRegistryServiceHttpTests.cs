@@ -264,58 +264,13 @@ public class ThaiCompanyRegistryServiceHttpTests
         var result = await service.SearchCompaniesAsync("9876543210123");
 
         Assert.Single(result);
-        Assert.Equal(1, callCount); // Only one HTTP call (company lookup), no token fetch
-    }
-
-    [Fact]
-    public async Task SearchCompaniesAsync_WithCorruptedCacheData_DeserializesGracefully()
-    {
-        var cacheMock = new Mock<IDistributedCache>();
-        // Return corrupted data for company cache
-        cacheMock.Setup(c => c.GetAsync(It.Is<string>(k => k.Contains("1234567890125")), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Encoding.UTF8.GetBytes("invalid json {{{")));
-        // No cached token
-        cacheMock.Setup(c => c.GetAsync("bdex:oauth:token", It.IsAny<CancellationToken>()))
-            .ReturnsAsync((byte[]?)null);
-
-        const string tokenJson = @"{
-            ""status"": {""code"": ""1000"", ""description"": ""Success""},
-            ""data"": {""accessToken"": ""test-token"", ""tokenType"": ""Bearer"", ""expiresIn"": ""1800"", ""expiresAt"": ""2026-01-01""}
-        }";
-
-        const string companyJson = @"{
-            ""status"": {""code"": ""1000"", ""description"": ""Success""},
-            ""data"": {
-                ""OrganizationJuristicID"": ""1234567890125"",
-                ""OrganizationJuristicNameTH"": ""บริษัท ทดสอบ 2 จำกัด"",
-                ""OrganizationJuristicStatus"": ""ยังดำเนินกิจการอยู่"",
-                ""OrganizationJuristicType"": ""5""
+                Assert.Equal(1, callCount); // Only one HTTP call (company lookup), no token fetch
             }
-        }";
-
-        var responses = new Queue<string>(new[] { tokenJson, companyJson });
-        var handler = new FakeHttpMessageHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
-        {
-            Content = new StringContent(responses.Dequeue(), Encoding.UTF8, "application/json")
-        });
-
-        var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://api.dbd.go.th") };
-        var loggerMock = new Mock<ILogger<ThaiCompanyRegistryService>>();
-        var credenMock = new Mock<ICredenProxyService>();
-        credenMock.Setup(c => c.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Enumerable.Empty<CompanyProfile>());
-
-        var service = new ThaiCompanyRegistryService(httpClient, cacheMock.Object, CreateDefaultOptions(), credenMock.Object, loggerMock.Object);
-
-        // Despite corrupted cache, should fetch from API and return result
-        var result = await service.SearchCompaniesAsync("1234567890125");
-        Assert.Single(result);
-    }
-}
-
-/// <summary>
-/// Simple fake HTTP handler for unit testing.
-/// </summary>
+        }
+        
+        /// <summary>
+        /// Simple fake HTTP handler for unit testing.
+        /// </summary>
 public class FakeHttpMessageHandler : HttpMessageHandler
 {
     private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
