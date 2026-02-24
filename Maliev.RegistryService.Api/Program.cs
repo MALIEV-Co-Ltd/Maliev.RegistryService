@@ -71,7 +71,8 @@ try
     // Add HttpClient for Creden.co API (fallback)
     builder.Services.AddHttpClient<ICredenProxyService, CredenProxyService>(client =>
     {
-        client.BaseAddress = new Uri("https://data.creden.co");
+        var credenBaseUrl = builder.Configuration["Creden:BaseUrl"] ?? "https://data.creden.co";
+        client.BaseAddress = new Uri(credenBaseUrl);
         client.Timeout = TimeSpan.FromSeconds(20);
         client.DefaultRequestHeaders.Add("Accept", "application/json");
         client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
