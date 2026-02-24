@@ -69,7 +69,6 @@ public class CompaniesController : ControllerBase
         {
             var results = await _thaiCompanyRegistryService.SearchCompaniesAsync(query, cancellationToken);
 
-
             // Apply limit on the results
             var limitedResults = results.Take(limit);
 

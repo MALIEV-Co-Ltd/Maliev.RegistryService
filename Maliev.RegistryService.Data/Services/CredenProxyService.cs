@@ -82,7 +82,7 @@ public sealed class CredenProxyService : ICredenProxyService
                 Lang = "th"
             };
 
-            var response = await _httpClient.PostAsJsonAsync("https://data.creden.co/sapi/search/get_suggestion", payload, cancellationToken);
+            var response = await _httpClient.PostAsJsonAsync("sapi/search/get_suggestion", payload, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var credenResponse = await response.Content.ReadFromJsonAsync<CredenResponse>(cancellationToken);
