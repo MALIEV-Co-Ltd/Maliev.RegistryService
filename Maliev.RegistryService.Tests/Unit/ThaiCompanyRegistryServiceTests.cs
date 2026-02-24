@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Maliev.RegistryService.Tests.Unit;
 
-public class DbdProxyServiceTests
+public class ThaiCompanyRegistryServiceTests
 {
     private static IOptions<BdexApiOptions> CreateDefaultOptions()
     {
@@ -29,9 +29,10 @@ public class DbdProxyServiceTests
         // Arrange
         var httpClient = new HttpClient();
         var cacheMock = new Mock<IDistributedCache>();
-        var loggerMock = new Mock<ILogger<DbdProxyService>>();
+        var loggerMock = new Mock<ILogger<ThaiCompanyRegistryService>>();
+        var credenMock = new Mock<ICredenProxyService>();
         var options = CreateDefaultOptions();
-        var service = new DbdProxyService(httpClient, cacheMock.Object, options, loggerMock.Object);
+        var service = new ThaiCompanyRegistryService(httpClient, cacheMock.Object, options, credenMock.Object, loggerMock.Object);
 
         // Act
         var result = await service.SearchCompaniesAsync("");
@@ -46,7 +47,8 @@ public class DbdProxyServiceTests
         // Arrange
         var httpClient = new HttpClient();
         var cacheMock = new Mock<IDistributedCache>();
-        var loggerMock = new Mock<ILogger<DbdProxyService>>();
+        var loggerMock = new Mock<ILogger<ThaiCompanyRegistryService>>();
+        var credenMock = new Mock<ICredenProxyService>();
         var options = CreateDefaultOptions();
 
         var cachedProfile = new CompanyProfile("1", "Active", "1234567890123", "Test Company", "Test Business", "5", null, "Test Full Name");
@@ -55,7 +57,7 @@ public class DbdProxyServiceTests
         cacheMock.Setup(c => c.GetAsync("bdex:company:1234567890123", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Encoding.UTF8.GetBytes(cachedJson));
 
-        var service = new DbdProxyService(httpClient, cacheMock.Object, options, loggerMock.Object);
+        var service = new ThaiCompanyRegistryService(httpClient, cacheMock.Object, options, credenMock.Object, loggerMock.Object);
 
         // Act
         var result = await service.SearchCompaniesAsync("1234567890123");
@@ -71,9 +73,10 @@ public class DbdProxyServiceTests
         // Arrange
         var httpClient = new HttpClient();
         var cacheMock = new Mock<IDistributedCache>();
-        var loggerMock = new Mock<ILogger<DbdProxyService>>();
+        var loggerMock = new Mock<ILogger<ThaiCompanyRegistryService>>();
+        var credenMock = new Mock<ICredenProxyService>();
         var options = CreateDefaultOptions();
-        var service = new DbdProxyService(httpClient, cacheMock.Object, options, loggerMock.Object);
+        var service = new ThaiCompanyRegistryService(httpClient, cacheMock.Object, options, credenMock.Object, loggerMock.Object);
 
         // Act
         var result = await service.SearchCompaniesAsync("   ");

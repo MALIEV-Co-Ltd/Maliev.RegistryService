@@ -111,8 +111,8 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
     public async Task CompanySearch_WithValidQuery_ReturnsSuccess()
     {
         // Arrange
-        var mockDbdService = new Mock<IDbdProxyService>();
-        mockDbdService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        var mockThaiService = new Mock<IThaiCompanyRegistryService>();
+        mockThaiService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync(new List<CompanyProfile>
             {
                 new CompanyProfile("1", "ยังดำเนินกิจการอยู่", "0105552101137",
@@ -126,18 +126,19 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
         {
             builder.ConfigureTestServices(services =>
             {
-                // Remove existing IDbdProxyService registrations
+                // Remove existing IThaiCompanyRegistryService registrations
                 var descriptors = services.Where(
-                    d => d.ServiceType == typeof(IDbdProxyService)).ToList();
+                    d => d.ServiceType == typeof(IThaiCompanyRegistryService)).ToList();
                 foreach (var descriptor in descriptors)
                 {
                     services.Remove(descriptor);
                 }
 
                 // Add mock service
-                services.AddScoped(_ => mockDbdService.Object);
+                services.AddScoped(_ => mockThaiService.Object);
             });
         });
+
 
         // Create authenticated client from the modified factory
         var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
@@ -199,17 +200,17 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
     [Fact]
     public async Task CompanySearch_WhenServiceThrowsInvalidOperationException_ReturnsServiceUnavailable()
     {
-        var mockDbdService = new Mock<IDbdProxyService>();
-        mockDbdService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        var mockThaiService = new Mock<IThaiCompanyRegistryService>();
+        mockThaiService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new InvalidOperationException("Service unavailable"));
 
         var modifiedFactory = _factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureTestServices(services =>
             {
-                var descriptors = services.Where(d => d.ServiceType == typeof(IDbdProxyService)).ToList();
+                var descriptors = services.Where(d => d.ServiceType == typeof(IThaiCompanyRegistryService)).ToList();
                 foreach (var descriptor in descriptors) services.Remove(descriptor);
-                services.AddScoped(_ => mockDbdService.Object);
+                services.AddScoped(_ => mockThaiService.Object);
             });
         });
 
@@ -225,19 +226,20 @@ public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactor
     [Fact]
     public async Task CompanySearch_WhenServiceThrowsUnexpectedException_ReturnsInternalServerError()
     {
-        var mockDbdService = new Mock<IDbdProxyService>();
-        mockDbdService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+        var mockThaiService = new Mock<IThaiCompanyRegistryService>();
+        mockThaiService.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ThrowsAsync(new Exception("Unexpected error"));
 
         var modifiedFactory = _factory.WithWebHostBuilder(builder =>
         {
             builder.ConfigureTestServices(services =>
             {
-                var descriptors = services.Where(d => d.ServiceType == typeof(IDbdProxyService)).ToList();
+                var descriptors = services.Where(d => d.ServiceType == typeof(IThaiCompanyRegistryService)).ToList();
                 foreach (var descriptor in descriptors) services.Remove(descriptor);
-                services.AddScoped(_ => mockDbdService.Object);
+                services.AddScoped(_ => mockThaiService.Object);
             });
         });
+
 
         var token = _factory.CreateTestJwtToken(permissions: [RegistryPermissions.CompaniesRead]);
         var client = modifiedFactory.CreateClient();

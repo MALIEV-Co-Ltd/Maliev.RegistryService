@@ -1,4 +1,5 @@
 using Maliev.RegistryService.Data.Configuration;
+using Maliev.RegistryService.Data.Models;
 using Maliev.RegistryService.Data.Services;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
@@ -11,9 +12,9 @@ using Xunit;
 namespace Maliev.RegistryService.Tests.Unit;
 
 /// <summary>
-/// Tests for DbdProxyService that require HTTP mock to cover the token+lookup flow.
+/// Tests for ThaiCompanyRegistryService that require HTTP mock to cover the token+lookup flow.
 /// </summary>
-public class DbdProxyServiceHttpTests
+public class ThaiCompanyRegistryServiceHttpTests
 {
     private static IOptions<BdexApiOptions> CreateDefaultOptions() =>
         Options.Create(new BdexApiOptions
@@ -54,22 +55,71 @@ public class DbdProxyServiceHttpTests
         return new HttpClient(handler) { BaseAddress = new Uri("https://api.dbd.go.th") };
     }
 
-    private static (DbdProxyService service, Mock<IDistributedCache> cacheMock) CreateService(HttpClient httpClient)
+    private static (ThaiCompanyRegistryService service, Mock<IDistributedCache> cacheMock, Mock<ICredenProxyService> credenMock) CreateService(HttpClient httpClient)
     {
         var cacheMock = new Mock<IDistributedCache>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((byte[]?)null); // Nothing in cache
-        var loggerMock = new Mock<ILogger<DbdProxyService>>();
-        var service = new DbdProxyService(httpClient, cacheMock.Object, CreateDefaultOptions(), loggerMock.Object);
-        return (service, cacheMock);
+        var loggerMock = new Mock<ILogger<ThaiCompanyRegistryService>>();
+        var credenMock = new Mock<ICredenProxyService>();
+        var service = new ThaiCompanyRegistryService(httpClient, cacheMock.Object, CreateDefaultOptions(), credenMock.Object, loggerMock.Object);
+        return (service, cacheMock, credenMock);
     }
 
     [Fact]
-    public async Task SearchCompaniesAsync_WithNon13DigitNumber_ReturnsEmpty()
+    public async Task SearchCompaniesAsync_TryCredenFirst_ThenFallsBackToBdex()
     {
-        var (service, _) = CreateService(new HttpClient());
-        var result = await service.SearchCompaniesAsync("1234567890");  // Only 10 digits
-        Assert.Empty(result);
+        // Arrange
+        const string tokenJson = @"{
+            ""status"": {""code"": ""1000"", ""description"": ""Success""},
+            ""data"": {""accessToken"": ""test-token"", ""tokenType"": ""Bearer"", ""expiresIn"": ""1800"", ""expiresAt"": ""2026-01-01T00:00:00""}
+        }";
+        const string companyJson = @"{
+            ""status"": {""code"": ""1000"", ""description"": ""Success""},
+            ""data"": {
+                ""OrganizationJuristicID"": ""1234567890123"",
+                ""OrganizationJuristicNameTH"": ""BDEX Result"",
+                ""OrganizationJuristicStatus"": ""ยังดำเนินกิจการอยู่"",
+                ""OrganizationJuristicType"": ""5""
+            }
+        }";
+
+        var httpClient = CreateHttpClient(
+            ("/auth/oauth/v2/token", tokenJson),
+            ("/text/JuristicPerson/v1/InquiryOJPbyID", companyJson));
+
+        var (service, _, credenMock) = CreateService(httpClient);
+        
+        // Creden returns empty
+        credenMock.Setup(c => c.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Enumerable.Empty<CompanyProfile>());
+
+        // Act
+        var result = await service.SearchCompaniesAsync("1234567890123");
+
+        // Assert
+        Assert.Single(result);
+        Assert.Equal("BDEX Result", result.First().CompanyNameTh);
+        credenMock.Verify(c => c.SearchCompaniesAsync("1234567890123", It.IsAny<CancellationToken>()), Times.Once);
+    }
+
+    [Fact]
+    public async Task SearchCompaniesAsync_WhenCredenReturnsResults_DoesNotCallBdex()
+    {
+        // Arrange
+        var httpClient = CreateFailingHttpClient(HttpStatusCode.InternalServerError); // BDEX is broken
+        var (service, _, credenMock) = CreateService(httpClient);
+        
+        var expectedResults = new[] { new CompanyProfile("1", "Active", "1234567890123", "Creden Result", "", "5", null, "Creden Result") };
+        credenMock.Setup(c => c.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expectedResults);
+
+        // Act
+        var result = await service.SearchCompaniesAsync("1234567890123");
+
+        // Assert
+        Assert.Equal(expectedResults, result);
+        credenMock.Verify(c => c.SearchCompaniesAsync("1234567890123", It.IsAny<CancellationToken>()), Times.Once);
     }
 
     [Fact]
@@ -97,7 +147,9 @@ public class DbdProxyServiceHttpTests
             ("/auth/oauth/v2/token", tokenJson),
             ("/text/JuristicPerson/v1/InquiryOJPbyID", companyJson));
 
-        var (service, cacheMock) = CreateService(httpClient);
+        var (service, cacheMock, credenMock) = CreateService(httpClient);
+        credenMock.Setup(c => c.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Enumerable.Empty<CompanyProfile>());
 
         var result = await service.SearchCompaniesAsync("1234567890123");
 
@@ -116,7 +168,9 @@ public class DbdProxyServiceHttpTests
     public async Task SearchCompaniesAsync_WhenTokenRequestFails_ReturnsEmpty()
     {
         var httpClient = CreateFailingHttpClient(HttpStatusCode.Unauthorized);
-        var (service, _) = CreateService(httpClient);
+        var (service, _, credenMock) = CreateService(httpClient);
+        credenMock.Setup(c => c.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Enumerable.Empty<CompanyProfile>());
 
         var result = await service.SearchCompaniesAsync("1234567890123");
 
@@ -132,7 +186,9 @@ public class DbdProxyServiceHttpTests
         }";
 
         var httpClient = CreateHttpClient(("/auth/oauth/v2/token", failedTokenJson));
-        var (service, _) = CreateService(httpClient);
+        var (service, _, credenMock) = CreateService(httpClient);
+        credenMock.Setup(c => c.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Enumerable.Empty<CompanyProfile>());
 
         var result = await service.SearchCompaniesAsync("1234567890123");
 
@@ -156,7 +212,9 @@ public class DbdProxyServiceHttpTests
             ("/auth/oauth/v2/token", tokenJson),
             ("/text/JuristicPerson/v1/InquiryOJPbyID", noCompanyJson));
 
-        var (service, _) = CreateService(httpClient);
+        var (service, _, credenMock) = CreateService(httpClient);
+        credenMock.Setup(c => c.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Enumerable.Empty<CompanyProfile>());
 
         var result = await service.SearchCompaniesAsync("1234567890123");
 
@@ -196,8 +254,12 @@ public class DbdProxyServiceHttpTests
         });
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://api.dbd.go.th") };
 
-        var loggerMock = new Mock<ILogger<DbdProxyService>>();
-        var service = new DbdProxyService(httpClient, cacheMock.Object, CreateDefaultOptions(), loggerMock.Object);
+        var loggerMock = new Mock<ILogger<ThaiCompanyRegistryService>>();
+        var credenMock = new Mock<ICredenProxyService>();
+        credenMock.Setup(c => c.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Enumerable.Empty<CompanyProfile>());
+
+        var service = new ThaiCompanyRegistryService(httpClient, cacheMock.Object, CreateDefaultOptions(), credenMock.Object, loggerMock.Object);
 
         var result = await service.SearchCompaniesAsync("9876543210123");
 
@@ -211,7 +273,7 @@ public class DbdProxyServiceHttpTests
         var cacheMock = new Mock<IDistributedCache>();
         // Return corrupted data for company cache
         cacheMock.Setup(c => c.GetAsync(It.Is<string>(k => k.Contains("1234567890125")), It.IsAny<CancellationToken>()))
-            .ReturnsAsync(Encoding.UTF8.GetBytes("invalid json {{{"));
+            .ReturnsAsync(Encoding.UTF8.GetBytes("invalid json {{{")));
         // No cached token
         cacheMock.Setup(c => c.GetAsync("bdex:oauth:token", It.IsAny<CancellationToken>()))
             .ReturnsAsync((byte[]?)null);
@@ -238,8 +300,12 @@ public class DbdProxyServiceHttpTests
         });
 
         var httpClient = new HttpClient(handler) { BaseAddress = new Uri("https://api.dbd.go.th") };
-        var loggerMock = new Mock<ILogger<DbdProxyService>>();
-        var service = new DbdProxyService(httpClient, cacheMock.Object, CreateDefaultOptions(), loggerMock.Object);
+        var loggerMock = new Mock<ILogger<ThaiCompanyRegistryService>>();
+        var credenMock = new Mock<ICredenProxyService>();
+        credenMock.Setup(c => c.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(Enumerable.Empty<CompanyProfile>());
+
+        var service = new ThaiCompanyRegistryService(httpClient, cacheMock.Object, CreateDefaultOptions(), credenMock.Object, loggerMock.Object);
 
         // Despite corrupted cache, should fetch from API and return result
         var result = await service.SearchCompaniesAsync("1234567890125");
