@@ -9,7 +9,9 @@ namespace Maliev.RegistryService.Data.Context.Design;
 /// </summary>
 public class RegistryDbContextFactory : IDesignTimeDbContextFactory<RegistryDbContext>
 {
+    /// <inheritdoc />
     public RegistryDbContext CreateDbContext(string[] args)
+
     {
         var optionsBuilder = new DbContextOptionsBuilder<RegistryDbContext>();
 

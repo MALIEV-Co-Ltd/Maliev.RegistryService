@@ -16,21 +16,22 @@ namespace Maliev.RegistryService.Api.Controllers;
 [ApiController]
 public class CompaniesController : ControllerBase
 {
-    private readonly IDbdProxyService _dbdProxyService;
+    private readonly IThaiCompanyRegistryService _thaiCompanyRegistryService;
     private readonly ILogger<CompaniesController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CompaniesController"/> class.
     /// </summary>
-    /// <param name="dbdProxyService">The DBD proxy service.</param>
+    /// <param name="thaiCompanyRegistryService">The Thai company registry service.</param>
     /// <param name="logger">Logger instance.</param>
     public CompaniesController(
-        IDbdProxyService dbdProxyService,
+        IThaiCompanyRegistryService thaiCompanyRegistryService,
         ILogger<CompaniesController> logger)
     {
-        _dbdProxyService = dbdProxyService;
+        _thaiCompanyRegistryService = thaiCompanyRegistryService;
         _logger = logger;
     }
+
 
     /// <summary>
     /// Search for Thai companies by name or tax ID.
@@ -66,7 +67,8 @@ public class CompaniesController : ControllerBase
 
         try
         {
-            var results = await _dbdProxyService.SearchCompaniesAsync(query, cancellationToken);
+            var results = await _thaiCompanyRegistryService.SearchCompaniesAsync(query, cancellationToken);
+
 
             // Apply limit on the results
             var limitedResults = results.Take(limit);

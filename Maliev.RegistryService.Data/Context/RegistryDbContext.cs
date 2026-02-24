@@ -3,15 +3,25 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.RegistryService.Data.Context;
 
+/// <summary>
+/// Database context for the Registry Service.
+/// </summary>
 public class RegistryDbContext : DbContext
 {
+    /// <summary>
+    /// Initializes a new instance of the <see cref="RegistryDbContext"/> class.
+    /// </summary>
+    /// <param name="options">The context options.</param>
     public RegistryDbContext(DbContextOptions<RegistryDbContext> options) : base(options)
     {
     }
 
+    /// <summary>Gets or sets the Thai locations dataset.</summary>
     public DbSet<ThaiLocation> ThaiLocations => Set<ThaiLocation>();
 
+    /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
+
     {
         base.OnModelCreating(modelBuilder);
 

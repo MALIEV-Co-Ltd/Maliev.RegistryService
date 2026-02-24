@@ -4,35 +4,87 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.RegistryService.Data.Services;
 
+/// <summary>
+/// Service for interacting with the Thailand location registry.
+/// </summary>
 public interface IThaiRegistryService
 {
+    /// <summary>
+    /// Performs a generic autocomplete search across all location fields.
+    /// </summary>
+    /// <param name="query">The search term.</param>
+    /// <param name="limit">The maximum number of results.</param>
+    /// <returns>A collection of matching locations.</returns>
     Task<IEnumerable<ThaiLocation>> AutocompleteAsync(string query, int limit);
+
+    /// <summary>
+    /// Performs a multi-field search for precise matching.
+    /// </summary>
+    /// <param name="postalCode">Optional postal code.</param>
+    /// <param name="district">Optional district.</param>
+    /// <param name="city">Optional city.</param>
+    /// <param name="province">Optional province.</param>
+    /// <param name="limit">The maximum number of results.</param>
+    /// <returns>A collection of matching locations.</returns>
     Task<IEnumerable<ThaiLocation>> AutocompleteMultiFieldAsync(
         string? postalCode,
         string? district,
         string? city,
         string? province,
         int limit = 3);
+
+    /// <summary>
+    /// Gets a location by its unique identifier.
+    /// </summary>
+    /// <param name="id">The location ID.</param>
+    /// <returns>The location if found, otherwise null.</returns>
     Task<ThaiLocation?> GetByIdAsync(Guid id);
+
+    /// <summary>
+    /// Creates a new location record.
+    /// </summary>
+    /// <param name="location">The location data.</param>
+    /// <returns>The created location.</returns>
     Task<ThaiLocation> CreateAsync(ThaiLocation location);
+
+    /// <summary>
+    /// Updates an existing location record.
+    /// </summary>
+    /// <param name="location">The updated location data.</param>
+    /// <returns>True if the update was successful, otherwise false.</returns>
     Task<bool> UpdateAsync(ThaiLocation location);
+
+    /// <summary>
+    /// Deletes a location record.
+    /// </summary>
+    /// <param name="id">The location ID.</param>
+    /// <returns>True if the deletion was successful, otherwise false.</returns>
     Task<bool> DeleteAsync(Guid id);
 }
 
+/// <summary>
+/// Implementation of the Thai registry service.
+/// </summary>
 public class ThaiRegistryService : IThaiRegistryService
 {
     private readonly RegistryDbContext _context;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="ThaiRegistryService"/> class.
+    /// </summary>
+    /// <param name="context">The database context.</param>
     public ThaiRegistryService(RegistryDbContext context)
     {
         _context = context;
     }
 
+    /// <inheritdoc />
     public async Task<ThaiLocation?> GetByIdAsync(Guid id)
     {
         return await _context.ThaiLocations.FindAsync(id);
     }
 
+    /// <inheritdoc />
     public async Task<ThaiLocation> CreateAsync(ThaiLocation location)
     {
         if (location.Id == Guid.Empty)
@@ -45,6 +97,7 @@ public class ThaiRegistryService : IThaiRegistryService
         return location;
     }
 
+    /// <inheritdoc />
     public async Task<bool> UpdateAsync(ThaiLocation location)
     {
         var existing = await _context.ThaiLocations.FindAsync(location.Id);
@@ -58,6 +111,7 @@ public class ThaiRegistryService : IThaiRegistryService
         return true;
     }
 
+    /// <inheritdoc />
     public async Task<bool> DeleteAsync(Guid id)
     {
         var location = await _context.ThaiLocations.FindAsync(id);
@@ -68,7 +122,9 @@ public class ThaiRegistryService : IThaiRegistryService
         return true;
     }
 
+    /// <inheritdoc />
     public async Task<IEnumerable<ThaiLocation>> AutocompleteAsync(string query, int limit)
+
     {
         if (string.IsNullOrWhiteSpace(query)) return Enumerable.Empty<ThaiLocation>();
 

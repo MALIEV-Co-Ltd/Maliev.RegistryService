@@ -11,9 +11,9 @@ using Microsoft.Extensions.Options;
 namespace Maliev.RegistryService.Data.Services;
 
 /// <summary>
-/// Service interface for DBD (Department of Business Development) company lookups.
+/// Service interface for Thai company registry lookups.
 /// </summary>
-public interface IDbdProxyService
+public interface IThaiCompanyRegistryService
 {
     /// <summary>
     /// Searches for Thai companies by name or tax ID.
@@ -25,36 +25,41 @@ public interface IDbdProxyService
 }
 
 /// <summary>
-/// Proxy service for querying Thai business registry data via BDEX API (api.dbd.go.th).
-/// Implements OAuth 2.0 authentication with token caching and 24-hour result caching.
+/// Service for querying Thai business registry data.
+/// Prioritizes Creden.co and falls back to BDEX API (api.dbd.go.th).
 /// </summary>
-public sealed class DbdProxyService : IDbdProxyService
+public sealed class ThaiCompanyRegistryService : IThaiCompanyRegistryService
 {
     private readonly HttpClient _httpClient;
     private readonly IDistributedCache _cache;
-    private readonly ILogger<DbdProxyService> _logger;
+    private readonly ILogger<ThaiCompanyRegistryService> _logger;
     private readonly BdexApiOptions _options;
+    private readonly ICredenProxyService _credenService;
     private const int CacheExpirationHours = 24;
     private const string TokenCacheKey = "bdex:oauth:token";
 
     /// <summary>
-    /// Initializes a new instance of the <see cref="DbdProxyService"/> class.
+    /// Initializes a new instance of the <see cref="ThaiCompanyRegistryService"/> class.
     /// </summary>
     /// <param name="httpClient">HTTP client for external API calls.</param>
     /// <param name="cache">Distributed cache for storing results.</param>
     /// <param name="options">BDEX API configuration options.</param>
+    /// <param name="credenService">Main service for company lookups.</param>
     /// <param name="logger">Logger instance.</param>
-    public DbdProxyService(
+    public ThaiCompanyRegistryService(
         HttpClient httpClient,
         IDistributedCache cache,
         IOptions<BdexApiOptions> options,
-        ILogger<DbdProxyService> logger)
+        ICredenProxyService credenService,
+        ILogger<ThaiCompanyRegistryService> logger)
     {
         _httpClient = httpClient;
         _cache = cache;
         _options = options.Value;
+        _credenService = credenService;
         _logger = logger;
     }
+
 
     /// <inheritdoc/>
     public async Task<IEnumerable<CompanyProfile>> SearchCompaniesAsync(
@@ -66,11 +71,27 @@ public sealed class DbdProxyService : IDbdProxyService
             return Enumerable.Empty<CompanyProfile>();
         }
 
+        // 1. Try Creden first (Main Service)
+        try
+        {
+            var credenResults = await _credenService.SearchCompaniesAsync(searchText, cancellationToken);
+            var resultsList = credenResults.ToList();
+            if (resultsList.Count > 0)
+            {
+                return resultsList;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Creden lookup failed for query '{SearchText}'. Falling back to BDEX.", searchText);
+        }
+
+        // 2. Try BDEX (Fallback Service)
         // Check if the search text looks like a tax ID (13 digits)
         var sanitizedSearch = new string(searchText.Where(char.IsDigit).ToArray());
         if (sanitizedSearch.Length != 13)
         {
-            _logger.LogWarning("Search text '{SearchText}' is not a valid 13-digit tax ID. BDEX API only supports lookup by ID.", searchText);
+            _logger.LogDebug("Search query '{SearchText}' is not a 13-digit tax ID. BDEX fallback skipped.", searchText);
             return Enumerable.Empty<CompanyProfile>();
         }
 
@@ -97,7 +118,7 @@ public sealed class DbdProxyService : IDbdProxyService
             var accessToken = await GetAccessTokenAsync(cancellationToken);
             if (string.IsNullOrEmpty(accessToken))
             {
-                _logger.LogError("Failed to obtain BDEX access token");
+                _logger.LogWarning("Failed to obtain BDEX access token for fallback lookup.");
                 return Enumerable.Empty<CompanyProfile>();
             }
 
@@ -121,17 +142,13 @@ public sealed class DbdProxyService : IDbdProxyService
 
             return [profile];
         }
-        catch (HttpRequestException ex)
-        {
-            _logger.LogError(ex, "HTTP request failed while looking up company with tax ID '{TaxId}'", sanitizedSearch);
-            return Enumerable.Empty<CompanyProfile>();
-        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Unexpected error while looking up company with tax ID '{TaxId}'", sanitizedSearch);
+            _logger.LogError(ex, "BDEX fallback lookup failed for tax ID '{TaxId}'", sanitizedSearch);
             return Enumerable.Empty<CompanyProfile>();
         }
     }
+
 
     /// <summary>
     /// Retrieves an OAuth access token from BDEX API, with caching.

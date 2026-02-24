@@ -53,7 +53,7 @@ try
         builder.Configuration.GetSection(Maliev.RegistryService.Data.Configuration.BdexApiOptions.SectionName));
 
     // Add HttpClient for BDEX API (api.dbd.go.th)
-    builder.Services.AddHttpClient<IDbdProxyService, DbdProxyService>(client =>
+    builder.Services.AddHttpClient<IThaiCompanyRegistryService, ThaiCompanyRegistryService>(client =>
     {
         client.Timeout = TimeSpan.FromSeconds(30);
         client.DefaultRequestHeaders.Add("Accept", "application/json");
@@ -67,6 +67,16 @@ try
         return handler;
     })
     .AddStandardResilienceHandler(); // Standard retry, circuit breaker, and timeout policies
+
+    // Add HttpClient for Creden.co API (fallback)
+    builder.Services.AddHttpClient<ICredenProxyService, CredenProxyService>(client =>
+    {
+        client.Timeout = TimeSpan.FromSeconds(20);
+        client.DefaultRequestHeaders.Add("Accept", "application/json");
+        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36");
+    })
+    .AddStandardResilienceHandler();
+
 
     // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
     if (!builder.Environment.IsProduction())
