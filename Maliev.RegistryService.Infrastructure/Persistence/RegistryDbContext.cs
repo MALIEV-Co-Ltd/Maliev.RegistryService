@@ -1,7 +1,7 @@
-using Maliev.RegistryService.Data.Entities;
+using Maliev.RegistryService.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 
-namespace Maliev.RegistryService.Data.Context;
+namespace Maliev.RegistryService.Infrastructure.Persistence;
 
 public class RegistryDbContext : DbContext
 {

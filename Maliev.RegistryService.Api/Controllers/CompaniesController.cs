@@ -2,8 +2,8 @@ using Asp.Versioning;
 using Maliev.Aspire.ServiceDefaults.Authorization;
 using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api.Infrastructure;
-using Maliev.RegistryService.Data.Models;
-using Maliev.RegistryService.Data.Services;
+using Maliev.RegistryService.Application.DTOs;
+using Maliev.RegistryService.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Maliev.RegistryService.Api.Controllers;

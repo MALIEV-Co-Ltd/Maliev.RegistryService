@@ -1,9 +1,10 @@
+using Maliev.RegistryService.Infrastructure.Services;
 using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api.Infrastructure;
 
-using Maliev.RegistryService.Data.Entities;
-using Maliev.RegistryService.Data.Models;
-using Maliev.RegistryService.Data.Services;
+using Maliev.RegistryService.Domain.Entities;
+using Maliev.RegistryService.Application.DTOs;
+using Maliev.RegistryService.Application.Interfaces;
 using Maliev.RegistryService.Tests.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;

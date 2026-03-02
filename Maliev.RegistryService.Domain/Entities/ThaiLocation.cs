@@ -1,6 +1,4 @@
-using Microsoft.EntityFrameworkCore;
-
-namespace Maliev.RegistryService.Data.Entities;
+namespace Maliev.RegistryService.Domain.Entities;
 
 public class ThaiLocation
 {

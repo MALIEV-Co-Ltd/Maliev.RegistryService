@@ -1,10 +1,10 @@
 using System;
-using Maliev.RegistryService.Data.SeedData;
+using Maliev.RegistryService.Application.SeedData;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Maliev.RegistryService.Data.Migrations
+namespace Maliev.RegistryService.Application.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration

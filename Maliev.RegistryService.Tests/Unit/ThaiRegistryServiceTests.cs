@@ -1,6 +1,7 @@
-using Maliev.RegistryService.Data.Context;
-using Maliev.RegistryService.Data.Entities;
-using Maliev.RegistryService.Data.Services;
+using Maliev.RegistryService.Infrastructure.Services;
+using Maliev.RegistryService.Infrastructure.Persistence;
+using Maliev.RegistryService.Domain.Entities;
+using Maliev.RegistryService.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 

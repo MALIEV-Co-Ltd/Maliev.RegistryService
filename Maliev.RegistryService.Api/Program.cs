@@ -1,8 +1,12 @@
-using Maliev.RegistryService.Data.Context;
-using Maliev.RegistryService.Data.SeedData;
-using Maliev.RegistryService.Data.Services;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.RegistryService.Api;
+using Maliev.RegistryService.Application;
+using Maliev.RegistryService.Application.Interfaces;
+using Maliev.RegistryService.Application.SeedData;
+using Maliev.RegistryService.Infrastructure;
+using Maliev.RegistryService.Infrastructure.Configuration;
+using Maliev.RegistryService.Infrastructure.Persistence;
+using Maliev.RegistryService.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
 // Initialize bootstrap logging
@@ -45,14 +49,14 @@ try
     // --- Authorization & Permissions ---
     builder.Services.AddPermissionAuthorization();
 
-    // Add Domain Services
-    builder.Services.AddScoped<IThaiRegistryService, ThaiRegistryService>();
+    // --- Layer Registration ---
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
 
-    // Configure BDEX API options from user secrets
-    builder.Services.Configure<Maliev.RegistryService.Data.Configuration.BdexApiOptions>(
-        builder.Configuration.GetSection(Maliev.RegistryService.Data.Configuration.BdexApiOptions.SectionName));
+    // Specific HTTP client configuration for DBD Proxy
+    builder.Services.Configure<BdexApiOptions>(
+        builder.Configuration.GetSection(BdexApiOptions.SectionName));
 
-    // Add HttpClient for BDEX API (api.dbd.go.th)
     builder.Services.AddHttpClient<IDbdProxyService, DbdProxyService>(client =>
     {
         client.Timeout = TimeSpan.FromSeconds(30);
@@ -66,7 +70,7 @@ try
         };
         return handler;
     })
-    .AddStandardResilienceHandler(); // Standard retry, circuit breaker, and timeout policies
+    .AddStandardResilienceHandler();
 
     // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
     if (!builder.Environment.IsProduction())
@@ -148,7 +152,6 @@ try
 catch (Exception ex)
 {
     Log.HostTerminated(bootstrapLogger, ex, "Registry Service");
-    // Force flush to ensure Aspire captures the error before process exits
     Console.Out.Flush();
     Console.Error.Flush();
     throw;
@@ -159,7 +162,7 @@ finally
 }
 
 /// <summary>
-/// Main entry point for the Maliev Registry Service API.
+/// Main program class for the application
 /// </summary>
 public partial class Program
 {
@@ -175,4 +178,3 @@ public partial class Program
         public static partial void ServiceStarted(ILogger logger, string serviceName);
     }
 }
-// Trigger CI

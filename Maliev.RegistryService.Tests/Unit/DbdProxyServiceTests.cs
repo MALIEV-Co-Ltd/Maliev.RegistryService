@@ -1,6 +1,7 @@
-using Maliev.RegistryService.Data.Configuration;
-using Maliev.RegistryService.Data.Models;
-using Maliev.RegistryService.Data.Services;
+using Maliev.RegistryService.Infrastructure.Services;
+using Maliev.RegistryService.Infrastructure.Configuration;
+using Maliev.RegistryService.Application.DTOs;
+using Maliev.RegistryService.Application.Interfaces;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

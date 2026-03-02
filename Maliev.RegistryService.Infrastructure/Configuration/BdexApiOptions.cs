@@ -1,4 +1,4 @@
-namespace Maliev.RegistryService.Data.Configuration;
+namespace Maliev.RegistryService.Infrastructure.Configuration;
 
 /// <summary>
 /// Configuration options for BDEX (Business Data Exchange) API integration.

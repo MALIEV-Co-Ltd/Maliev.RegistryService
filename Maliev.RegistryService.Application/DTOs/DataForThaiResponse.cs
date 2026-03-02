@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Maliev.RegistryService.Data.Models;
+namespace Maliev.RegistryService.Application.DTOs;
 
 /// <summary>
 /// Response from dataforthai.com company search API.

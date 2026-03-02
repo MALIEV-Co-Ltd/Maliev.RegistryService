@@ -1,11 +1,11 @@
 using System.Text.Json.Serialization;
 
-namespace Maliev.RegistryService.Data.Models;
+namespace Maliev.RegistryService.Application.DTOs;
 
 /// <summary>
 /// Base response wrapper for BDEX API responses.
 /// </summary>
-internal sealed record BdexResponse<T>
+public sealed record BdexResponse<T>
 {
     [JsonPropertyName("status")]
     public BdexStatus Status { get; init; } = new();
@@ -17,7 +17,7 @@ internal sealed record BdexResponse<T>
 /// <summary>
 /// Status information in BDEX API responses.
 /// </summary>
-internal sealed record BdexStatus
+public sealed record BdexStatus
 {
     [JsonPropertyName("code")]
     public string Code { get; init; } = string.Empty;
@@ -34,7 +34,7 @@ internal sealed record BdexStatus
 /// <summary>
 /// OAuth token response data from BDEX API.
 /// </summary>
-internal sealed record BdexTokenData
+public sealed record BdexTokenData
 {
     [JsonPropertyName("accessToken")]
     public string AccessToken { get; init; } = string.Empty;
@@ -52,7 +52,7 @@ internal sealed record BdexTokenData
 /// <summary>
 /// Request body for OAuth token endpoint.
 /// </summary>
-internal sealed record BdexTokenRequest
+public sealed record BdexTokenRequest
 {
     [JsonPropertyName("grant_type")]
     public string GrantType { get; init; } = "client_credentials";
@@ -61,7 +61,7 @@ internal sealed record BdexTokenRequest
 /// <summary>
 /// Request body for company lookup by juristic ID.
 /// </summary>
-internal sealed record BdexCompanyLookupRequest
+public sealed record BdexCompanyLookupRequest
 {
     [JsonPropertyName("OrganizationJuristicID")]
     public string OrganizationJuristicID { get; init; } = string.Empty;
@@ -71,7 +71,7 @@ internal sealed record BdexCompanyLookupRequest
 /// Company information returned by BDEX API.
 /// Based on official DBD API documentation schema.
 /// </summary>
-internal sealed record BdexCompanyData
+public sealed record BdexCompanyData
 {
     /// <summary>
     /// 13-digit juristic registration ID (เลขทะเบียนนิติบุคคล 13 หลัก).
@@ -179,7 +179,7 @@ internal sealed record BdexCompanyData
 /// <summary>
 /// Business objective information.
 /// </summary>
-internal sealed record BdexJuristicObjective
+public sealed record BdexJuristicObjective
 {
     /// <summary>
     /// Objective type: R=Registration objective, F=Latest financial statement objective.
@@ -209,7 +209,7 @@ internal sealed record BdexJuristicObjective
 /// <summary>
 /// Director/partner information.
 /// </summary>
-internal sealed record BdexJuristicPerson
+public sealed record BdexJuristicPerson
 {
     /// <summary>
     /// Sequence number (ลำดับ).
@@ -245,7 +245,7 @@ internal sealed record BdexJuristicPerson
 /// <summary>
 /// Person information.
 /// </summary>
-internal sealed record BdexPerson
+public sealed record BdexPerson
 {
     /// <summary>
     /// Person details.
@@ -257,7 +257,7 @@ internal sealed record BdexPerson
 /// <summary>
 /// Detailed person information.
 /// </summary>
-internal sealed record BdexPersonDetail
+public sealed record BdexPersonDetail
 {
     /// <summary>
     /// Name in Thai.
@@ -269,7 +269,7 @@ internal sealed record BdexPersonDetail
 /// <summary>
 /// Person name in Thai.
 /// </summary>
-internal sealed record BdexPersonNameTH
+public sealed record BdexPersonNameTH
 {
     /// <summary>
     /// Title prefix (คำนำหน้าชื่อ).
@@ -299,7 +299,7 @@ internal sealed record BdexPersonNameTH
 /// <summary>
 /// Address information.
 /// </summary>
-internal sealed record BdexAddress
+public sealed record BdexAddress
 {
     /// <summary>
     /// Address type.
@@ -395,7 +395,7 @@ internal sealed record BdexAddress
 /// <summary>
 /// Sub-district (Tambon) information.
 /// </summary>
-internal sealed record BdexCitySubDivision
+public sealed record BdexCitySubDivision
 {
     /// <summary>
     /// Sub-district code (รหัสตำบล).
@@ -413,7 +413,7 @@ internal sealed record BdexCitySubDivision
 /// <summary>
 /// District (Amphoe) information.
 /// </summary>
-internal sealed record BdexCity
+public sealed record BdexCity
 {
     /// <summary>
     /// District code (รหัสอำเภอ).
@@ -431,7 +431,7 @@ internal sealed record BdexCity
 /// <summary>
 /// Province information.
 /// </summary>
-internal sealed record BdexCountrySubDivision
+public sealed record BdexCountrySubDivision
 {
     /// <summary>
     /// Province code (รหัสจังหวัด).
@@ -449,7 +449,7 @@ internal sealed record BdexCountrySubDivision
 /// <summary>
 /// Other descriptions about the juristic person.
 /// </summary>
-internal sealed record BdexPersonDescription
+public sealed record BdexPersonDescription
 {
     /// <summary>
     /// Sequence number (ลำดับของข้อมูล).

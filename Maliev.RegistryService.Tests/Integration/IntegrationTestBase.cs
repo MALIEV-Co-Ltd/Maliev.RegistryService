@@ -1,4 +1,4 @@
-using Maliev.RegistryService.Data.Context;
+using Maliev.RegistryService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Testcontainers.PostgreSql;
 using Xunit;
@@ -7,7 +7,7 @@ namespace Maliev.RegistryService.Tests.Integration;
 
 public class IntegrationTestBase : IAsyncLifetime
 {
-    protected readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder("postgres:18-alpine")
+    protected readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder()
         .Build();
 
     protected RegistryDbContext CreateDbContext()

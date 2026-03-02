@@ -1,6 +1,6 @@
-using Maliev.RegistryService.Data.Entities;
+using Maliev.RegistryService.Domain.Entities;
 
-namespace Maliev.RegistryService.Data.SeedData;
+namespace Maliev.RegistryService.Application.SeedData;
 
 /// <summary>
 /// Static seed data for Thai locations (postal codes, districts, provinces).

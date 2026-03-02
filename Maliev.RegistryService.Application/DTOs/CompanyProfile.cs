@@ -1,4 +1,4 @@
-namespace Maliev.RegistryService.Data.Models;
+namespace Maliev.RegistryService.Application.DTOs;
 
 /// <summary>
 /// Represents a company profile retrieved from the Thai business registry.

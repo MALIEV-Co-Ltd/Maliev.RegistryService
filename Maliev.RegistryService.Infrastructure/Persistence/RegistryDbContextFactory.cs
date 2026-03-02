@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace Maliev.RegistryService.Data.Context.Design;
+namespace Maliev.RegistryService.Infrastructure.Persistence.Design;
 
 /// <summary>
 /// Design-time factory for RegistryDbContext.
