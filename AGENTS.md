@@ -72,7 +72,7 @@ dotnet ef database update --project Maliev.RegistryService.Data --startup-projec
 ### Testing Guidelines
 - **Framework**: xUnit.
 - **Naming**: `MethodName_StateUnderTest_ExpectedBehavior`.
-- **Database**: Use `InMemoryDatabase` for unit tests involving EF Core contexts (see `ThaiRegistryServiceTests.cs`).
+- **Database**: Use **Testcontainers** (PostgreSQL) for integration tests. No InMemoryDatabase (banned by constitution).
 - **Assertions**: Use `Assert` class (e.g., `Assert.NotNull`, `Assert.Equal`).
 
 ## Key Dependencies
