@@ -16,6 +16,7 @@ using Xunit;
 
 namespace Maliev.RegistryService.Tests.Integration;
 
+[Trait("Category", "Integration")]
 public class EndpointsIntegrationTests : IClassFixture<RegistryServiceTestFactory>
 {
     private readonly RegistryServiceTestFactory _factory;

@@ -115,10 +115,11 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
             _initLock.Release();
         }
 
-        // Set environment variables immediately after containers start
-        Environment.SetEnvironmentVariable("ConnectionStrings__RegistryDbContext", _postgresContainer!.GetConnectionString());
-        Environment.SetEnvironmentVariable("ConnectionStrings__redis", _redisContainer!.GetConnectionString());
-        Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", _rabbitmqContainer!.GetConnectionString());
+        // Set environment variables immediately after containers start (for non-web tests)
+        // Note: CreateHost() will also set these for web tests
+        Environment.SetEnvironmentVariable("ConnectionStrings:RegistryDbContext", _postgresContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:redis", _redisContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:rabbitmq", _rabbitmqContainer!.GetConnectionString());
     }
 
     public new async Task DisposeAsync()
@@ -144,6 +145,23 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         Environment.SetEnvironmentVariable("Jwt__PublicKey", publicKeyBase64);
         Environment.SetEnvironmentVariable("Jwt:PublicKey", publicKeyBase64);
 
+        // Set connection strings as environment variables BEFORE creating host
+        // This ensures they're available when Program.cs calls AddPostgresDbContext
+        Environment.SetEnvironmentVariable("ConnectionStrings:RegistryDbContext", _postgresContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:redis", _redisContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:rabbitmq", _rabbitmqContainer!.GetConnectionString());
+
+        // Also configure directly in the builder to ensure it's picked up
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:RegistryDbContext"] = _postgresContainer!.GetConnectionString(),
+                ["ConnectionStrings:redis"] = _redisContainer!.GetConnectionString(),
+                ["ConnectionStrings:rabbitmq"] = _rabbitmqContainer!.GetConnectionString()
+            });
+        });
+
         return base.CreateHost(builder);
     }
 
@@ -162,10 +180,8 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
                 ["Jwt:Issuer"] = "test-issuer",
                 ["Jwt:Audience"] = "test-audience",
                 ["CORS:AllowedOrigins:0"] = "http://localhost:3000",
-                ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000",
-                ["ConnectionStrings:RegistryDbContext"] = _postgresContainer!.GetConnectionString(),
-                ["ConnectionStrings:redis"] = _redisContainer!.GetConnectionString(),
-                ["ConnectionStrings:rabbitmq"] = _rabbitmqContainer!.GetConnectionString()
+                ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000"
+                // Connection strings are set as environment variables in CreateHost()
             });
         });
 

@@ -8,6 +8,7 @@ using Xunit;
 
 namespace Maliev.RegistryService.Tests.Integration;
 
+[Trait("Category", "Integration")]
 public class LocationsCrudTests : IClassFixture<RegistryServiceTestFactory>
 {
     private readonly RegistryServiceTestFactory _factory;
