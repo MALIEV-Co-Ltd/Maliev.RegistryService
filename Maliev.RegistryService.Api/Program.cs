@@ -1,8 +1,12 @@
-using Maliev.RegistryService.Data.Context;
-using Maliev.RegistryService.Data.SeedData;
-using Maliev.RegistryService.Data.Services;
 using Maliev.Aspire.ServiceDefaults;
 using Maliev.RegistryService.Api;
+using Maliev.RegistryService.Application;
+using Maliev.RegistryService.Application.Interfaces;
+using Maliev.RegistryService.Application.SeedData;
+using Maliev.RegistryService.Infrastructure;
+using Maliev.RegistryService.Infrastructure.Configuration;
+using Maliev.RegistryService.Infrastructure.Persistence;
+using Maliev.RegistryService.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
 // Initialize bootstrap logging
@@ -14,6 +18,24 @@ try
     Log.StartingHost(bootstrapLogger, "Registry Service");
 
     var builder = WebApplication.CreateBuilder(args);
+
+    // For test environment, read connection strings from environment variables set by test factory
+    // This must be done BEFORE AddPostgresDbContext reads the connection string
+    var envConnStr = Environment.GetEnvironmentVariable("ConnectionStrings:RegistryDbContext");
+    if (!string.IsNullOrEmpty(envConnStr))
+    {
+        builder.Configuration["ConnectionStrings:RegistryDbContext"] = envConnStr;
+    }
+    var envRedis = Environment.GetEnvironmentVariable("ConnectionStrings:redis");
+    if (!string.IsNullOrEmpty(envRedis))
+    {
+        builder.Configuration["ConnectionStrings:redis"] = envRedis;
+    }
+    var envRabbit = Environment.GetEnvironmentVariable("ConnectionStrings:rabbitmq");
+    if (!string.IsNullOrEmpty(envRabbit))
+    {
+        builder.Configuration["ConnectionStrings:rabbitmq"] = envRabbit;
+    }
 
     // --- Secrets & Configuration ---
     builder.AddGoogleSecretManagerVolume(); // Load secrets from /mnt/secrets if available
@@ -45,14 +67,14 @@ try
     // --- Authorization & Permissions ---
     builder.Services.AddPermissionAuthorization();
 
-    // Add Domain Services
-    builder.Services.AddScoped<IThaiRegistryService, ThaiRegistryService>();
+    // --- Layer Registration ---
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
 
-    // Configure BDEX API options from user secrets
-    builder.Services.Configure<Maliev.RegistryService.Data.Configuration.BdexApiOptions>(
-        builder.Configuration.GetSection(Maliev.RegistryService.Data.Configuration.BdexApiOptions.SectionName));
+    // Specific HTTP client configuration for DBD Proxy
+    builder.Services.Configure<BdexApiOptions>(
+        builder.Configuration.GetSection(BdexApiOptions.SectionName));
 
-    // Add HttpClient for BDEX API (api.dbd.go.th)
     builder.Services.AddHttpClient<IDbdProxyService, DbdProxyService>(client =>
     {
         client.Timeout = TimeSpan.FromSeconds(30);
@@ -66,7 +88,7 @@ try
         };
         return handler;
     })
-    .AddStandardResilienceHandler(); // Standard retry, circuit breaker, and timeout policies
+    .AddStandardResilienceHandler();
 
     // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
     if (!builder.Environment.IsProduction())
@@ -86,8 +108,12 @@ try
 
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-    // Run database migrations on startup
-    await app.MigrateDatabaseAsync<RegistryDbContext>();
+    // Run database migrations on startup (skip in test environment - test factory handles it)
+    var isTestEnv = app.Environment.IsEnvironment("Testing") || app.Environment.IsEnvironment("Test");
+    if (!isTestEnv)
+    {
+        await app.MigrateDatabaseAsync<RegistryDbContext>();
+    }
 
     // Seed production location data on startup
     if (app.Environment.IsDevelopment())
@@ -148,7 +174,6 @@ try
 catch (Exception ex)
 {
     Log.HostTerminated(bootstrapLogger, ex, "Registry Service");
-    // Force flush to ensure Aspire captures the error before process exits
     Console.Out.Flush();
     Console.Error.Flush();
     throw;
@@ -159,7 +184,7 @@ finally
 }
 
 /// <summary>
-/// Main entry point for the Maliev Registry Service API.
+/// Main program class for the application
 /// </summary>
 public partial class Program
 {
@@ -175,4 +200,3 @@ public partial class Program
         public static partial void ServiceStarted(ILogger logger, string serviceName);
     }
 }
-// Trigger CI

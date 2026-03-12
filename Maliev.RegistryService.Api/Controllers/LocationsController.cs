@@ -2,8 +2,8 @@ using Asp.Versioning;
 using Maliev.Aspire.ServiceDefaults.Authorization;
 using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api.Infrastructure;
-using Maliev.RegistryService.Data.Entities;
-using Maliev.RegistryService.Data.Services;
+using Maliev.RegistryService.Domain.Entities;
+using Maliev.RegistryService.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,7 +13,7 @@ namespace Maliev.RegistryService.Api.Controllers;
 /// Controller for location registry lookups.
 /// </summary>
 [ApiVersion("1.0")]
-[Route("registry/v1/thai/addresses")]
+[Route("registry/v{version:apiVersion}/thai/addresses")]
 [ApiController]
 public class LocationsController : ControllerBase
 {

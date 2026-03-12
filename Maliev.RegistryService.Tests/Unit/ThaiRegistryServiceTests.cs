@@ -1,26 +1,41 @@
-using Maliev.RegistryService.Data.Context;
-using Maliev.RegistryService.Data.Entities;
-using Maliev.RegistryService.Data.Services;
+using Maliev.RegistryService.Infrastructure.Services;
+using Maliev.RegistryService.Infrastructure.Persistence;
+using Maliev.RegistryService.Domain.Entities;
+using Maliev.RegistryService.Application.Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Testcontainers.PostgreSql;
 using Xunit;
 
 namespace Maliev.RegistryService.Tests.Unit;
 
-public class ThaiRegistryServiceTests
+public class ThaiRegistryServiceTests : IAsyncLifetime
 {
-    private readonly DbContextOptions<RegistryDbContext> _options;
+    private readonly PostgreSqlContainer _dbContainer = new PostgreSqlBuilder()
+        .WithImage("postgres:16-alpine")
+        .Build();
 
-    public ThaiRegistryServiceTests()
+    private DbContextOptions<RegistryDbContext> _options = null!;
+
+    public async Task InitializeAsync()
     {
+        await _dbContainer.StartAsync();
+
         _options = new DbContextOptionsBuilder<RegistryDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseNpgsql(_dbContainer.GetConnectionString())
             .Options;
+
+        using var context = new RegistryDbContext(_options);
+        await context.Database.EnsureCreatedAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _dbContainer.StopAsync();
     }
 
     [Fact]
     public async Task GetByIdAsync_WhenExists_ReturnsLocation()
     {
-        // Arrange
         var id = Guid.NewGuid();
         using var context = new RegistryDbContext(_options);
         context.ThaiLocations.Add(new ThaiLocation { Id = id, PostalCode = "12345", SubDistrictEn = "Test", DistrictEn = "Test", ProvinceEn = "Test", SubDistrictTh = "Test", DistrictTh = "Test", ProvinceTh = "Test" });
@@ -28,10 +43,8 @@ public class ThaiRegistryServiceTests
 
         var service = new ThaiRegistryService(context);
 
-        // Act
         var result = await service.GetByIdAsync(id);
 
-        // Assert
         Assert.NotNull(result);
         Assert.Equal(id, result.Id);
     }
@@ -39,15 +52,12 @@ public class ThaiRegistryServiceTests
     [Fact]
     public async Task CreateAsync_SavesToDatabase()
     {
-        // Arrange
         using var context = new RegistryDbContext(_options);
         var service = new ThaiRegistryService(context);
         var location = new ThaiLocation { PostalCode = "55555", SubDistrictEn = "New", DistrictEn = "New", ProvinceEn = "New", SubDistrictTh = "New", DistrictTh = "New", ProvinceTh = "New" };
 
-        // Act
         var result = await service.CreateAsync(location);
 
-        // Assert
         Assert.NotEqual(Guid.Empty, result.Id);
         var saved = await context.ThaiLocations.FindAsync(result.Id);
         Assert.NotNull(saved);
@@ -57,7 +67,6 @@ public class ThaiRegistryServiceTests
     [Fact]
     public async Task UpdateAsync_UpdatesExistingData()
     {
-        // Arrange
         var id = Guid.NewGuid();
         using var context = new RegistryDbContext(_options);
         context.ThaiLocations.Add(new ThaiLocation { Id = id, PostalCode = "10000", SubDistrictEn = "Old", DistrictEn = "Old", ProvinceEn = "Old", SubDistrictTh = "Old", DistrictTh = "Old", ProvinceTh = "Old" });
@@ -66,10 +75,8 @@ public class ThaiRegistryServiceTests
         var service = new ThaiRegistryService(context);
         var updated = new ThaiLocation { Id = id, PostalCode = "20000", SubDistrictEn = "New", DistrictEn = "New", ProvinceEn = "New", SubDistrictTh = "New", DistrictTh = "New", ProvinceTh = "New" };
 
-        // Act
         var success = await service.UpdateAsync(updated);
 
-        // Assert
         Assert.True(success);
         var saved = await context.ThaiLocations.FindAsync(id);
         Assert.Equal("20000", saved!.PostalCode);
@@ -79,7 +86,6 @@ public class ThaiRegistryServiceTests
     [Fact]
     public async Task DeleteAsync_RemovesFromDatabase()
     {
-        // Arrange
         var id = Guid.NewGuid();
         using var context = new RegistryDbContext(_options);
         context.ThaiLocations.Add(new ThaiLocation { Id = id, PostalCode = "10000", SubDistrictEn = "Old", DistrictEn = "Old", ProvinceEn = "Old", SubDistrictTh = "Old", DistrictTh = "Old", ProvinceTh = "Old" });
@@ -87,10 +93,8 @@ public class ThaiRegistryServiceTests
 
         var service = new ThaiRegistryService(context);
 
-        // Act
         var success = await service.DeleteAsync(id);
 
-        // Assert
         Assert.True(success);
         var saved = await context.ThaiLocations.FindAsync(id);
         Assert.Null(saved);
@@ -99,14 +103,11 @@ public class ThaiRegistryServiceTests
     [Fact]
     public async Task AutocompleteAsync_WithEmptyQuery_ReturnsEmpty()
     {
-        // Arrange
         using var context = new RegistryDbContext(_options);
         var service = new ThaiRegistryService(context);
 
-        // Act
         var result = await service.AutocompleteAsync("", 10);
 
-        // Assert
         Assert.Empty(result);
     }
 
@@ -146,5 +147,131 @@ public class ThaiRegistryServiceTests
         var service = new ThaiRegistryService(context);
         var result = await service.DeleteAsync(Guid.NewGuid());
         Assert.False(result);
+    }
+
+    [Fact]
+    public async Task AutocompleteAsync_WithValidQuery_ReturnsMatchingLocations()
+    {
+        using var context = new RegistryDbContext(_options);
+        context.ThaiLocations.Add(new ThaiLocation { Id = Guid.NewGuid(), PostalCode = "10100", SubDistrictTh = "สีลม", DistrictTh = "บางรัก", ProvinceTh = "กรุงเทพมหานคร", SubDistrictEn = "Silom", DistrictEn = "Bang Rak", ProvinceEn = "Bangkok" });
+        context.ThaiLocations.Add(new ThaiLocation { Id = Guid.NewGuid(), PostalCode = "10200", SubDistrictTh = "สามเสนใน", DistrictTh = "ป้อมปราบ", ProvinceTh = "กรุงเทพมหานคร", SubDistrictEn = "Sam Sen Nai", DistrictEn = "Pom Prap", ProvinceEn = "Bangkok" });
+        await context.SaveChangesAsync();
+
+        var service = new ThaiRegistryService(context);
+
+        var result = await service.AutocompleteAsync("สีลม", 10);
+
+        Assert.Single(result);
+        Assert.Equal("10100", result.First().PostalCode);
+    }
+
+    [Fact]
+    public async Task AutocompleteAsync_WithLimit_RespectsLimit()
+    {
+        using var context = new RegistryDbContext(_options);
+        for (int i = 0; i < 5; i++)
+        {
+            context.ThaiLocations.Add(new ThaiLocation { Id = Guid.NewGuid(), PostalCode = $"10{i:000}", SubDistrictTh = $"Test{i}", DistrictTh = "Test", ProvinceTh = "Test", SubDistrictEn = "Test", DistrictEn = "Test", ProvinceEn = "Test" });
+        }
+        await context.SaveChangesAsync();
+
+        var service = new ThaiRegistryService(context);
+
+        var result = await service.AutocompleteAsync("Test", 2);
+
+        Assert.Equal(2, result.Count());
+    }
+
+    [Fact]
+    public async Task AutocompleteAsync_WithWhitespaceQuery_ReturnsEmpty()
+    {
+        using var context = new RegistryDbContext(_options);
+        var service = new ThaiRegistryService(context);
+
+        var result = await service.AutocompleteAsync("   ", 10);
+
+        Assert.Empty(result);
+    }
+
+    [Fact]
+    public async Task AutocompleteMultiFieldAsync_WithPostalCode_ReturnsMatching()
+    {
+        using var context = new RegistryDbContext(_options);
+        context.ThaiLocations.Add(new ThaiLocation { Id = Guid.NewGuid(), PostalCode = "10100", SubDistrictTh = "สีลม", DistrictTh = "บางรัก", ProvinceTh = "กรุงเทพมหานคร", SubDistrictEn = "Silom", DistrictEn = "Bang Rak", ProvinceEn = "Bangkok" });
+        await context.SaveChangesAsync();
+
+        var service = new ThaiRegistryService(context);
+
+        var result = await service.AutocompleteMultiFieldAsync("10100", null, null, null, 10);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task AutocompleteMultiFieldAsync_WithDistrict_ReturnsMatching()
+    {
+        using var context = new RegistryDbContext(_options);
+        context.ThaiLocations.Add(new ThaiLocation { Id = Guid.NewGuid(), PostalCode = "10100", SubDistrictTh = "สีลม", DistrictTh = "บางรัก", ProvinceTh = "กรุงเทพมหานคร", SubDistrictEn = "Silom", DistrictEn = "Bang Rak", ProvinceEn = "Bangkok" });
+        await context.SaveChangesAsync();
+
+        var service = new ThaiRegistryService(context);
+
+        var result = await service.AutocompleteMultiFieldAsync(null, "บางรัก", null, null, 10);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task AutocompleteMultiFieldAsync_WithCity_ReturnsMatching()
+    {
+        using var context = new RegistryDbContext(_options);
+        context.ThaiLocations.Add(new ThaiLocation { Id = Guid.NewGuid(), PostalCode = "10100", SubDistrictTh = "สีลม", DistrictTh = "บางรัก", ProvinceTh = "กรุงเทพมหานคร", SubDistrictEn = "Silom", DistrictEn = "Bang Rak", ProvinceEn = "Bangkok" });
+        await context.SaveChangesAsync();
+
+        var service = new ThaiRegistryService(context);
+
+        var result = await service.AutocompleteMultiFieldAsync(null, null, "สีลม", null, 10);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task AutocompleteMultiFieldAsync_WithProvince_ReturnsMatching()
+    {
+        using var context = new RegistryDbContext(_options);
+        context.ThaiLocations.Add(new ThaiLocation { Id = Guid.NewGuid(), PostalCode = "10100", SubDistrictTh = "สีลม", DistrictTh = "บางรัก", ProvinceTh = "กรุงเทพมหานคร", SubDistrictEn = "Silom", DistrictEn = "Bang Rak", ProvinceEn = "Bangkok" });
+        await context.SaveChangesAsync();
+
+        var service = new ThaiRegistryService(context);
+
+        var result = await service.AutocompleteMultiFieldAsync(null, null, null, "กรุงเทพ", 10);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task AutocompleteMultiFieldAsync_WithMultipleFields_ReturnsMatching()
+    {
+        using var context = new RegistryDbContext(_options);
+        context.ThaiLocations.Add(new ThaiLocation { Id = Guid.NewGuid(), PostalCode = "10100", SubDistrictTh = "สีลม", DistrictTh = "บางรัก", ProvinceTh = "กรุงเทพมหานคร", SubDistrictEn = "Silom", DistrictEn = "Bang Rak", ProvinceEn = "Bangkok" });
+        await context.SaveChangesAsync();
+
+        var service = new ThaiRegistryService(context);
+
+        var result = await service.AutocompleteMultiFieldAsync("10100", "บางรัก", null, "กรุงเทพ", 10);
+
+        Assert.Single(result);
+    }
+
+    [Fact]
+    public async Task CreateAsync_WithEmptyId_GeneratesNewGuid()
+    {
+        using var context = new RegistryDbContext(_options);
+        var service = new ThaiRegistryService(context);
+        var location = new ThaiLocation { PostalCode = "55555", SubDistrictEn = "New", DistrictEn = "New", ProvinceEn = "New", SubDistrictTh = "New", DistrictTh = "New", ProvinceTh = "New" };
+
+        var result = await service.CreateAsync(location);
+
+        Assert.NotEqual(Guid.Empty, result.Id);
     }
 }

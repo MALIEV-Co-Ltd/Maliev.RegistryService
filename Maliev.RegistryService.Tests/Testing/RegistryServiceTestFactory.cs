@@ -1,4 +1,5 @@
-using Maliev.RegistryService.Data.Context;
+using Maliev.RegistryService.Application.SeedData;
+using Maliev.RegistryService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -55,13 +56,13 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         {
             if (!_containersStarted)
             {
-                _postgresContainer = new PostgreSqlBuilder("postgres:18-alpine")
+                _postgresContainer = new PostgreSqlBuilder()
                     .Build();
 
-                _redisContainer = new RedisBuilder("redis:8.4-alpine")
+                _redisContainer = new RedisBuilder()
                     .Build();
 
-                _rabbitmqContainer = new RabbitMqBuilder("rabbitmq:4.2-alpine")
+                _rabbitmqContainer = new RabbitMqBuilder()
                     .Build();
 
                 // Start all containers in parallel
@@ -98,6 +99,12 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
                     throw new InvalidOperationException("PostgreSQL Testcontainer failed to become ready after 60 seconds.");
                 }
 
+                // Set connection strings as environment variables AFTER containers start
+                // This ensures they're available when Program.cs reads configuration
+                Environment.SetEnvironmentVariable("ConnectionStrings:RegistryDbContext", _postgresContainer.GetConnectionString());
+                Environment.SetEnvironmentVariable("ConnectionStrings:redis", _redisContainer.GetConnectionString());
+                Environment.SetEnvironmentVariable("ConnectionStrings:rabbitmq", _rabbitmqContainer.GetConnectionString());
+
                 // Wait for Redis to be ready
                 using (var connection = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(_redisContainer.GetConnectionString()))
                 {
@@ -115,10 +122,11 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
             _initLock.Release();
         }
 
-        // Set environment variables immediately after containers start
-        Environment.SetEnvironmentVariable("ConnectionStrings__RegistryDbContext", _postgresContainer!.GetConnectionString());
-        Environment.SetEnvironmentVariable("ConnectionStrings__redis", _redisContainer!.GetConnectionString());
-        Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", _rabbitmqContainer!.GetConnectionString());
+        // Set environment variables immediately after containers start (for non-web tests)
+        // Note: CreateHost() will also set these for web tests
+        Environment.SetEnvironmentVariable("ConnectionStrings:RegistryDbContext", _postgresContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:redis", _redisContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:rabbitmq", _rabbitmqContainer!.GetConnectionString());
     }
 
     public new async Task DisposeAsync()
@@ -144,16 +152,47 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         Environment.SetEnvironmentVariable("Jwt__PublicKey", publicKeyBase64);
         Environment.SetEnvironmentVariable("Jwt:PublicKey", publicKeyBase64);
 
+        // Set connection strings as environment variables BEFORE creating host
+        // This ensures they're available when Program.cs calls AddPostgresDbContext
+        Environment.SetEnvironmentVariable("ConnectionStrings:RegistryDbContext", _postgresContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:redis", _redisContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:rabbitmq", _rabbitmqContainer!.GetConnectionString());
+
+        // Also configure directly in the builder to ensure it's picked up
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["ConnectionStrings:RegistryDbContext"] = _postgresContainer!.GetConnectionString(),
+                ["ConnectionStrings:redis"] = _redisContainer!.GetConnectionString(),
+                ["ConnectionStrings:rabbitmq"] = _rabbitmqContainer!.GetConnectionString()
+            });
+        });
+
         return base.CreateHost(builder);
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Ensure ASPNETCORE_ENVIRONMENT is set for all test hosts (including WithWebHostBuilder children)
+        builder.UseSetting("ENVIRONMENT", "Testing");
+
+        // Wait for containers to be ready before configuring the host
+        if (!_containersStarted)
+        {
+            InitializeAsync().GetAwaiter().GetResult();
+        }
+
         builder.ConfigureAppConfiguration((context, config) =>
         {
             // Get public key for configuration
             var publicKeyPem = _testRsa.ExportRSAPublicKeyPem();
             var publicKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(publicKeyPem));
+
+            // Read connection strings from environment variables (set in InitializeAsync)
+            var connStr = Environment.GetEnvironmentVariable("ConnectionStrings:RegistryDbContext");
+            var redisConn = Environment.GetEnvironmentVariable("ConnectionStrings:redis");
+            var rabbitConn = Environment.GetEnvironmentVariable("ConnectionStrings:rabbitmq");
 
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -163,14 +202,20 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
                 ["Jwt:Audience"] = "test-audience",
                 ["CORS:AllowedOrigins:0"] = "http://localhost:3000",
                 ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000",
-                ["ConnectionStrings:RegistryDbContext"] = _postgresContainer!.GetConnectionString(),
-                ["ConnectionStrings:redis"] = _redisContainer!.GetConnectionString(),
-                ["ConnectionStrings:rabbitmq"] = _rabbitmqContainer!.GetConnectionString()
+                // Connection strings from environment variables (set after containers start)
+                ["ConnectionStrings:RegistryDbContext"] = connStr,
+                ["ConnectionStrings:redis"] = redisConn,
+                ["ConnectionStrings:rabbitmq"] = rabbitConn
             });
         });
 
         builder.ConfigureTestServices(services =>
         {
+            // Override the DbContext with the test container connection string
+            var connStr = _postgresContainer!.GetConnectionString();
+            services.AddDbContext<RegistryDbContext>(options =>
+                options.UseNpgsql(connStr));
+
             // Configure JWT Bearer authentication with test RSA key
             services.PostConfigureAll<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(options =>
             {
@@ -229,6 +274,14 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
     {
         await using var context = CreateDbContext();
         await context.Database.MigrateAsync();
+
+        // Seed test data if database is empty
+        if (!await context.ThaiLocations.AnyAsync())
+        {
+            var locations = ThaiLocationData.GetLocations();
+            await context.ThaiLocations.AddRangeAsync(locations);
+            await context.SaveChangesAsync();
+        }
     }
 
     /// <summary>

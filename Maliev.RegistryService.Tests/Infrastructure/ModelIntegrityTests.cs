@@ -1,4 +1,4 @@
-using Maliev.RegistryService.Data.Context;
+using Maliev.RegistryService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
@@ -26,6 +26,6 @@ public class ModelIntegrityTests
 
         Assert.False(hasChanges,
             "The EF Core model for 'RegistryDbContext' has changed but no migration has been added. " +
-            "Run 'dotnet ef migrations add <Name> --project Maliev.RegistryService.Data --startup-project Maliev.RegistryService.Api' to fix this.");
+            "Run 'dotnet ef migrations add <Name> --project Maliev.RegistryService.Application --startup-project Maliev.RegistryService.Api' to fix this.");
     }
 }

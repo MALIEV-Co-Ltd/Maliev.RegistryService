@@ -1,5 +1,7 @@
 <Solution>
   <Project Path="Maliev.RegistryService.Api/Maliev.RegistryService.Api.csproj" />
-  <Project Path="Maliev.RegistryService.Data/Maliev.RegistryService.Data.csproj" />
+  <Project Path="Maliev.RegistryService.Application/Maliev.RegistryService.Application.csproj" />
+  <Project Path="Maliev.RegistryService.Domain/Maliev.RegistryService.Domain.csproj" />
+  <Project Path="Maliev.RegistryService.Infrastructure/Maliev.RegistryService.Infrastructure.csproj" />
   <Project Path="Maliev.RegistryService.Tests/Maliev.RegistryService.Tests.csproj" />
 </Solution>
