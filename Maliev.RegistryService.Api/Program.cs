@@ -19,6 +19,24 @@ try
 
     var builder = WebApplication.CreateBuilder(args);
 
+    // For test environment, read connection strings from environment variables set by test factory
+    // This must be done BEFORE AddPostgresDbContext reads the connection string
+    var envConnStr = Environment.GetEnvironmentVariable("ConnectionStrings:RegistryDbContext");
+    if (!string.IsNullOrEmpty(envConnStr))
+    {
+        builder.Configuration["ConnectionStrings:RegistryDbContext"] = envConnStr;
+    }
+    var envRedis = Environment.GetEnvironmentVariable("ConnectionStrings:redis");
+    if (!string.IsNullOrEmpty(envRedis))
+    {
+        builder.Configuration["ConnectionStrings:redis"] = envRedis;
+    }
+    var envRabbit = Environment.GetEnvironmentVariable("ConnectionStrings:rabbitmq");
+    if (!string.IsNullOrEmpty(envRabbit))
+    {
+        builder.Configuration["ConnectionStrings:rabbitmq"] = envRabbit;
+    }
+
     // --- Secrets & Configuration ---
     builder.AddGoogleSecretManagerVolume(); // Load secrets from /mnt/secrets if available
 
@@ -90,8 +108,12 @@ try
 
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-    // Run database migrations on startup
-    await app.MigrateDatabaseAsync<RegistryDbContext>();
+    // Run database migrations on startup (skip in test environment - test factory handles it)
+    var isTestEnv = app.Environment.IsEnvironment("Testing") || app.Environment.IsEnvironment("Test");
+    if (!isTestEnv)
+    {
+        await app.MigrateDatabaseAsync<RegistryDbContext>();
+    }
 
     // Seed production location data on startup
     if (app.Environment.IsDevelopment())

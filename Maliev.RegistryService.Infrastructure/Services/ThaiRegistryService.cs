@@ -59,6 +59,9 @@ public class ThaiRegistryService : IThaiRegistryService
             .Where(l => l.DistrictTh.Contains(query) || 
                         l.SubDistrictTh.Contains(query) || 
                         l.ProvinceTh.Contains(query) || 
+                        l.DistrictEn.Contains(query) ||
+                        l.SubDistrictEn.Contains(query) ||
+                        l.ProvinceEn.Contains(query) ||
                         l.PostalCode.Contains(query))
             .Take(limit)
             .ToListAsync();
@@ -77,13 +80,13 @@ public class ThaiRegistryService : IThaiRegistryService
             query = query.Where(l => l.PostalCode.StartsWith(postalCode));
         
         if (!string.IsNullOrWhiteSpace(district))
-            query = query.Where(l => l.DistrictTh.Contains(district));
+            query = query.Where(l => l.DistrictTh.Contains(district) || l.DistrictEn.Contains(district));
 
         if (!string.IsNullOrWhiteSpace(city))
-            query = query.Where(l => l.SubDistrictTh.Contains(city)); // City maps to SubDistrictTh in this domain
+            query = query.Where(l => l.SubDistrictTh.Contains(city) || l.SubDistrictEn.Contains(city));
 
         if (!string.IsNullOrWhiteSpace(province))
-            query = query.Where(l => l.ProvinceTh.Contains(province));
+            query = query.Where(l => l.ProvinceTh.Contains(province) || l.ProvinceEn.Contains(province));
 
         return await query.OrderBy(l => l.ProvinceTh).ThenBy(l => l.DistrictTh).Take(limit).ToListAsync();
     }

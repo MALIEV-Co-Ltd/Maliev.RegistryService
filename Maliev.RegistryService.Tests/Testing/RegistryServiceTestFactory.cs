@@ -1,3 +1,4 @@
+using Maliev.RegistryService.Application.SeedData;
 using Maliev.RegistryService.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -98,6 +99,12 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
                     throw new InvalidOperationException("PostgreSQL Testcontainer failed to become ready after 60 seconds.");
                 }
 
+                // Set connection strings as environment variables AFTER containers start
+                // This ensures they're available when Program.cs reads configuration
+                Environment.SetEnvironmentVariable("ConnectionStrings:RegistryDbContext", _postgresContainer.GetConnectionString());
+                Environment.SetEnvironmentVariable("ConnectionStrings:redis", _redisContainer.GetConnectionString());
+                Environment.SetEnvironmentVariable("ConnectionStrings:rabbitmq", _rabbitmqContainer.GetConnectionString());
+
                 // Wait for Redis to be ready
                 using (var connection = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(_redisContainer.GetConnectionString()))
                 {
@@ -167,11 +174,25 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
+        // Ensure ASPNETCORE_ENVIRONMENT is set for all test hosts (including WithWebHostBuilder children)
+        builder.UseSetting("ENVIRONMENT", "Testing");
+
+        // Wait for containers to be ready before configuring the host
+        if (!_containersStarted)
+        {
+            InitializeAsync().GetAwaiter().GetResult();
+        }
+
         builder.ConfigureAppConfiguration((context, config) =>
         {
             // Get public key for configuration
             var publicKeyPem = _testRsa.ExportRSAPublicKeyPem();
             var publicKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(publicKeyPem));
+
+            // Read connection strings from environment variables (set in InitializeAsync)
+            var connStr = Environment.GetEnvironmentVariable("ConnectionStrings:RegistryDbContext");
+            var redisConn = Environment.GetEnvironmentVariable("ConnectionStrings:redis");
+            var rabbitConn = Environment.GetEnvironmentVariable("ConnectionStrings:rabbitmq");
 
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
@@ -180,13 +201,21 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
                 ["Jwt:Issuer"] = "test-issuer",
                 ["Jwt:Audience"] = "test-audience",
                 ["CORS:AllowedOrigins:0"] = "http://localhost:3000",
-                ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000"
-                // Connection strings are set as environment variables in CreateHost()
+                ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000",
+                // Connection strings from environment variables (set after containers start)
+                ["ConnectionStrings:RegistryDbContext"] = connStr,
+                ["ConnectionStrings:redis"] = redisConn,
+                ["ConnectionStrings:rabbitmq"] = rabbitConn
             });
         });
 
         builder.ConfigureTestServices(services =>
         {
+            // Override the DbContext with the test container connection string
+            var connStr = _postgresContainer!.GetConnectionString();
+            services.AddDbContext<RegistryDbContext>(options =>
+                options.UseNpgsql(connStr));
+
             // Configure JWT Bearer authentication with test RSA key
             services.PostConfigureAll<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(options =>
             {
@@ -245,6 +274,14 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
     {
         await using var context = CreateDbContext();
         await context.Database.MigrateAsync();
+
+        // Seed test data if database is empty
+        if (!await context.ThaiLocations.AnyAsync())
+        {
+            var locations = ThaiLocationData.GetLocations();
+            await context.ThaiLocations.AddRangeAsync(locations);
+            await context.SaveChangesAsync();
+        }
     }
 
     /// <summary>

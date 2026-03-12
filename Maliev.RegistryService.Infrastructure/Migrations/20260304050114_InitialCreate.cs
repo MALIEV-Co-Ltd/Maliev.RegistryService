@@ -1,10 +1,9 @@
-using System;
-using Maliev.RegistryService.Application.SeedData;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Maliev.RegistryService.Application.Migrations
+namespace Maliev.RegistryService.Infrastructure.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration
@@ -80,7 +79,6 @@ namespace Maliev.RegistryService.Application.Migrations
                 .Annotation("Npgsql:IndexMethod", "gin")
                 .Annotation("Npgsql:IndexOperators", new[] { "gin_trgm_ops" });
         }
-
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)

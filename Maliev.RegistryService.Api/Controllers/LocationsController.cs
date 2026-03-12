@@ -13,7 +13,7 @@ namespace Maliev.RegistryService.Api.Controllers;
 /// Controller for location registry lookups.
 /// </summary>
 [ApiVersion("1.0")]
-[Route("registry/v1/thai/addresses")]
+[Route("registry/v{version:apiVersion}/thai/addresses")]
 [ApiController]
 public class LocationsController : ControllerBase
 {

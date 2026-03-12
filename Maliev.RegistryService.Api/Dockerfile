@@ -12,7 +12,9 @@ WORKDIR /src
 # Copy nuget.config and project files
 COPY ["nuget.config", "."]
 COPY ["Maliev.RegistryService.Api/Maliev.RegistryService.Api.csproj", "Maliev.RegistryService.Api/"]
-COPY ["Maliev.RegistryService.Data/Maliev.RegistryService.Data.csproj", "Maliev.RegistryService.Data/"]
+COPY ["Maliev.RegistryService.Application/Maliev.RegistryService.Application.csproj", "Maliev.RegistryService.Application/"]
+COPY ["Maliev.RegistryService.Domain/Maliev.RegistryService.Domain.csproj", "Maliev.RegistryService.Domain/"]
+COPY ["Maliev.RegistryService.Infrastructure/Maliev.RegistryService.Infrastructure.csproj", "Maliev.RegistryService.Infrastructure/"]
 
 # Restore with GitHub Packages authentication using BuildKit secrets
 # We set GITHUB_ACTIONS=true to trigger PackageReference usage in csproj
