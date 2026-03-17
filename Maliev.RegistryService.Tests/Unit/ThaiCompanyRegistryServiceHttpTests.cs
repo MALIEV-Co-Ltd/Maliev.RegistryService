@@ -13,7 +13,7 @@ using Xunit;
 namespace Maliev.RegistryService.Tests.Unit;
 
 /// <summary>
-/// Tests for DbdProxyService that require HTTP mock to cover the token+lookup flow.
+/// Tests for <see cref="DbdProxyService"/> HTTP flow (token + company lookup).
 /// </summary>
 public class DbdProxyServiceHttpTests
 {
@@ -60,7 +60,7 @@ public class DbdProxyServiceHttpTests
     {
         var cacheMock = new Mock<IDistributedCache>();
         cacheMock.Setup(c => c.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
-            .ReturnsAsync((byte[]?)null); // Nothing in cache
+            .ReturnsAsync((byte[]?)null);
         var loggerMock = new Mock<ILogger<DbdProxyService>>();
         var service = new DbdProxyService(httpClient, cacheMock.Object, CreateDefaultOptions(), loggerMock.Object);
         return (service, cacheMock);
@@ -70,7 +70,7 @@ public class DbdProxyServiceHttpTests
     public async Task SearchCompaniesAsync_WithNon13DigitNumber_ReturnsEmpty()
     {
         var (service, _) = CreateService(new HttpClient());
-        var result = await service.SearchCompaniesAsync("1234567890");  // Only 10 digits
+        var result = await service.SearchCompaniesAsync("1234567890");
         Assert.Empty(result);
     }
 
@@ -106,7 +106,6 @@ public class DbdProxyServiceHttpTests
         var profile = Assert.Single(result);
         Assert.Equal("1234567890123", profile.TaxId);
         Assert.Equal("บริษัท ทดสอบ จำกัด", profile.CompanyNameTh);
-        // Verify the result was cached
         cacheMock.Verify(c => c.SetAsync(
             It.Is<string>(k => k.Contains("1234567890123")),
             It.IsAny<byte[]>(),
@@ -180,10 +179,8 @@ public class DbdProxyServiceHttpTests
         }";
 
         var cacheMock = new Mock<IDistributedCache>();
-        // Return cached token for "bdex:oauth:token" key
         cacheMock.Setup(c => c.GetAsync("bdex:oauth:token", It.IsAny<CancellationToken>()))
             .ReturnsAsync(Encoding.UTF8.GetBytes(cachedToken));
-        // No cached company data
         cacheMock.Setup(c => c.GetAsync(It.Is<string>(k => k != "bdex:oauth:token"), It.IsAny<CancellationToken>()))
             .ReturnsAsync((byte[]?)null);
 
@@ -204,17 +201,15 @@ public class DbdProxyServiceHttpTests
         var result = await service.SearchCompaniesAsync("9876543210123");
 
         Assert.Single(result);
-        Assert.Equal(1, callCount); // Only one HTTP call (company lookup), no token fetch
+        Assert.Equal(1, callCount);
     }
 
     [Fact]
     public async Task SearchCompaniesAsync_WithCorruptedCacheData_DeserializesGracefully()
     {
         var cacheMock = new Mock<IDistributedCache>();
-        // Return corrupted data for company cache
         cacheMock.Setup(c => c.GetAsync(It.Is<string>(k => k.Contains("1234567890125")), It.IsAny<CancellationToken>()))
             .ReturnsAsync(Encoding.UTF8.GetBytes("invalid json {{{"));
-        // No cached token
         cacheMock.Setup(c => c.GetAsync("bdex:oauth:token", It.IsAny<CancellationToken>()))
             .ReturnsAsync((byte[]?)null);
 
@@ -243,9 +238,104 @@ public class DbdProxyServiceHttpTests
         var loggerMock = new Mock<ILogger<DbdProxyService>>();
         var service = new DbdProxyService(httpClient, cacheMock.Object, CreateDefaultOptions(), loggerMock.Object);
 
-        // Despite corrupted cache, should fetch from API and return result
         var result = await service.SearchCompaniesAsync("1234567890125");
         Assert.Single(result);
+    }
+}
+
+/// <summary>
+/// Tests for the <see cref="ThaiCompanyRegistryService"/> orchestrator (Creden-first, BDEX-fallback).
+/// </summary>
+public class ThaiCompanyRegistryServiceTests
+{
+    private static Mock<IDbdProxyService> BdexReturning(IEnumerable<CompanyProfile> profiles)
+    {
+        var mock = new Mock<IDbdProxyService>();
+        mock.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync(profiles);
+        return mock;
+    }
+
+    private static Mock<IDbdProxyService> BdexEmpty() => BdexReturning([]);
+
+    [Fact]
+    public async Task SearchCompaniesAsync_WhenCredenReturnsResults_ReturnsThem_WithoutCallingBdex()
+    {
+        // Arrange
+        var credenMock = new Mock<ICredenProxyService>();
+        var expected = new[] { new CompanyProfile("1", "Active", "1234567890123", "Creden Co.", "", "5", null, "Creden Co.") };
+        credenMock.Setup(s => s.SearchCompaniesAsync("test", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(expected);
+
+        var bdexMock = BdexEmpty();
+        var svc = new ThaiCompanyRegistryService(credenMock.Object, bdexMock.Object,
+            new Mock<ILogger<ThaiCompanyRegistryService>>().Object);
+
+        // Act
+        var result = await svc.SearchCompaniesAsync("test");
+
+        // Assert
+        Assert.Equal(expected, result);
+        bdexMock.Verify(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task SearchCompaniesAsync_WhenCredenReturnsEmpty_FallsBackToBdex()
+    {
+        // Arrange
+        var credenMock = new Mock<ICredenProxyService>();
+        credenMock.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ReturnsAsync([]);
+
+        var bdexProfile = new CompanyProfile("1", "Active", "1234567890123", "BDEX Co.", "", "5", null, "BDEX Co.");
+        var bdexMock = BdexReturning([bdexProfile]);
+
+        var svc = new ThaiCompanyRegistryService(credenMock.Object, bdexMock.Object,
+            new Mock<ILogger<ThaiCompanyRegistryService>>().Object);
+
+        // Act
+        var result = (await svc.SearchCompaniesAsync("1234567890123")).ToList();
+
+        // Assert
+        Assert.Single(result);
+        Assert.Equal("BDEX Co.", result[0].CompanyNameTh);
+    }
+
+    [Fact]
+    public async Task SearchCompaniesAsync_WhenCredenThrows_FallsBackToBdex()
+    {
+        // Arrange
+        var credenMock = new Mock<ICredenProxyService>();
+        credenMock.Setup(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .ThrowsAsync(new HttpRequestException("Creden unavailable"));
+
+        var bdexProfile = new CompanyProfile("1", "Active", "1234567890123", "BDEX Co.", "", "5", null, "BDEX Co.");
+        var bdexMock = BdexReturning([bdexProfile]);
+
+        var svc = new ThaiCompanyRegistryService(credenMock.Object, bdexMock.Object,
+            new Mock<ILogger<ThaiCompanyRegistryService>>().Object);
+
+        // Act
+        var result = (await svc.SearchCompaniesAsync("1234567890123")).ToList();
+
+        // Assert — should not throw, should return BDEX result
+        Assert.Single(result);
+        Assert.Equal("BDEX Co.", result[0].CompanyNameTh);
+    }
+
+    [Fact]
+    public async Task SearchCompaniesAsync_WithEmptyQuery_ReturnsEmpty_WithoutCallingEitherProvider()
+    {
+        var credenMock = new Mock<ICredenProxyService>();
+        var bdexMock = new Mock<IDbdProxyService>();
+        var svc = new ThaiCompanyRegistryService(credenMock.Object, bdexMock.Object,
+            new Mock<ILogger<ThaiCompanyRegistryService>>().Object);
+
+        var result = await svc.SearchCompaniesAsync("   ");
+
+        Assert.Empty(result);
+        credenMock.Verify(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        bdexMock.Verify(s => s.SearchCompaniesAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
     }
 }
 
@@ -256,11 +346,18 @@ public class FakeHttpMessageHandler : HttpMessageHandler
 {
     private readonly Func<HttpRequestMessage, HttpResponseMessage> _handler;
 
+    /// <summary>
+    /// Initializes a new instance of the <see cref="FakeHttpMessageHandler"/> class.
+    /// </summary>
+    /// <param name="handler">The delegate to invoke for each request.</param>
     public FakeHttpMessageHandler(Func<HttpRequestMessage, HttpResponseMessage> handler)
     {
         _handler = handler;
     }
 
-    protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+    /// <inheritdoc/>
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
         => Task.FromResult(_handler(request));
 }

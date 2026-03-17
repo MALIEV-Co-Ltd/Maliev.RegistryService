@@ -30,4 +30,11 @@
     </PackageReference>
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Allow test project to access internal types (ICredenProxyService, ThaiCompanyRegistryService) -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleTo">
+      <_Parameter1>Maliev.RegistryService.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
 </Project>

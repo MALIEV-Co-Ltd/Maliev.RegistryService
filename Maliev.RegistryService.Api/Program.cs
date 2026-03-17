@@ -9,6 +9,7 @@ using Maliev.RegistryService.Infrastructure.Persistence;
 using Maliev.RegistryService.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
 
+
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
 var bootstrapLogger = loggerFactory.CreateLogger("Program");
@@ -71,24 +72,12 @@ try
     builder.Services.AddApplication();
     builder.Services.AddInfrastructure(builder.Configuration);
 
-    // Specific HTTP client configuration for DBD Proxy
+    // Company registry providers (Creden primary + BDEX fallback) — see Infrastructure/DependencyInjection.cs
     builder.Services.Configure<BdexApiOptions>(
         builder.Configuration.GetSection(BdexApiOptions.SectionName));
 
-    builder.Services.AddHttpClient<IDbdProxyService, DbdProxyService>(client =>
-    {
-        client.Timeout = TimeSpan.FromSeconds(30);
-        client.DefaultRequestHeaders.Add("Accept", "application/json");
-    })
-    .ConfigurePrimaryHttpMessageHandler(() =>
-    {
-        var handler = new HttpClientHandler
-        {
-            AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate | System.Net.DecompressionMethods.Brotli
-        };
-        return handler;
-    })
-    .AddStandardResilienceHandler();
+    builder.Services.AddInfrastructureHttpClients(builder.Configuration);
+
 
     // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
     if (!builder.Environment.IsProduction())

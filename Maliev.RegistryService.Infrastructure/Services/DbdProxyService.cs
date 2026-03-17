@@ -57,7 +57,7 @@ public sealed class DbdProxyService : IDbdProxyService
         var sanitizedSearch = new string(searchText.Where(char.IsDigit).ToArray());
         if (sanitizedSearch.Length != 13)
         {
-            _logger.LogWarning("Search text '{SearchText}' is not a valid 13-digit tax ID. BDEX API only supports lookup by ID.", searchText);
+            _logger.LogDebug("Query '{SearchText}' is not a 13-digit tax ID — BDEX skipped.", searchText);
             return Enumerable.Empty<CompanyProfile>();
         }
 

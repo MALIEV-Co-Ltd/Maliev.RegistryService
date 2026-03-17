@@ -9,26 +9,27 @@ using Microsoft.AspNetCore.Mvc;
 namespace Maliev.RegistryService.Api.Controllers;
 
 /// <summary>
-/// Controller for Thai company registry lookups via DBD proxy.
+/// Controller for Thai company registry lookups.
+/// Uses Creden.co as the primary provider with BDEX (api.dbd.go.th) as fallback.
 /// </summary>
 [ApiVersion("1")]
 [Route("registry/v{version:apiVersion}/thai/companies")]
 [ApiController]
 public class CompaniesController : ControllerBase
 {
-    private readonly IDbdProxyService _dbdProxyService;
+    private readonly IThaiCompanyRegistryService _registryService;
     private readonly ILogger<CompaniesController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CompaniesController"/> class.
     /// </summary>
-    /// <param name="dbdProxyService">The DBD proxy service.</param>
+    /// <param name="registryService">The Thai company registry service.</param>
     /// <param name="logger">Logger instance.</param>
     public CompaniesController(
-        IDbdProxyService dbdProxyService,
+        IThaiCompanyRegistryService registryService,
         ILogger<CompaniesController> logger)
     {
-        _dbdProxyService = dbdProxyService;
+        _registryService = registryService;
         _logger = logger;
     }
 
@@ -66,7 +67,7 @@ public class CompaniesController : ControllerBase
 
         try
         {
-            var results = await _dbdProxyService.SearchCompaniesAsync(query, cancellationToken);
+            var results = await _registryService.SearchCompaniesAsync(query, cancellationToken);
 
             // Apply limit on the results
             var limitedResults = results.Take(limit);
