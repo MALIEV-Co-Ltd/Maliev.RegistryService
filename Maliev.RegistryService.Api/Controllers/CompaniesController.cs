@@ -11,7 +11,7 @@ namespace Maliev.RegistryService.Api.Controllers;
 /// <summary>
 /// Controller for Thai company registry lookups via DBD proxy.
 /// </summary>
-[ApiVersion("1.0")]
+[ApiVersion("1")]
 [Route("registry/v{version:apiVersion}/thai/companies")]
 [ApiController]
 public class CompaniesController : ControllerBase
