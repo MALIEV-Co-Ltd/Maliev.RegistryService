@@ -5,75 +5,107 @@ This file contains instructions for AI agents (and human developers) working on 
 ## Project Overview
 - **Framework**: .NET 10.0 (C#)
 - **Type**: ASP.NET Core Web API Microservice
-- **Architecture**: Layered (Api, Data, Tests)
+- **Architecture**: Layered (Api, Application, Domain, Infrastructure, Tests)
 - **Infrastructure**: .NET Aspire Service Defaults, Entity Framework Core (PostgreSQL), MassTransit (RabbitMQ), Redis
 
 ## Build, Run, and Test Commands
 
+All commands run from within this service directory (`B:\maliev\Maliev.RegistryService`).
+
 ### Build
-```bash
-dotnet build
+```powershell
+dotnet build Maliev.RegistryService.slnx
 ```
 Note: `<TreatWarningsAsErrors>` is enabled. Fix all warnings.
 
 ### Run
-```bash
+```powershell
 dotnet run --project Maliev.RegistryService.Api
 ```
 
 ### Test
 Run all tests:
-```bash
-dotnet test
+```powershell
+dotnet test Maliev.RegistryService.slnx --verbosity normal
 ```
 
-Run a single test (Example):
-```bash
+Run a single test method:
+```powershell
 dotnet test --filter "FullyQualifiedName~Maliev.RegistryService.Tests.Unit.ThaiRegistryServiceTests.GetByIdAsync_WhenExists_ReturnsLocation"
 ```
-Or by display name (simpler):
-```bash
-dotnet test --filter "DisplayName~GetByIdAsync"
+
+Run all tests in a class:
+```powershell
+dotnet test --filter "FullyQualifiedName~ThaiRegistryServiceTests"
+```
+
+Run with code coverage:
+```powershell
+dotnet test Maliev.RegistryService.slnx --collect:"XPlat Code Coverage"
+```
+
+### Format Check
+```powershell
+dotnet format Maliev.RegistryService.slnx
 ```
 
 ### Database Operations
 The application attempts to migrate on startup (`app.MigrateDatabaseAsync`).
 To run migrations manually (requires `dotnet-ef` tool):
-```bash
+```powershell
+dotnet ef migrations add <Name> --project Maliev.RegistryService.Infrastructure --startup-project Maliev.RegistryService.Infrastructure
 dotnet ef database update --project Maliev.RegistryService.Infrastructure --startup-project Maliev.RegistryService.Infrastructure
 ```
 
 ## Code Style & Conventions
 
-### General
-- **Indentation**: 4 spaces.
-- **Namespaces**: Use file-scoped namespaces (e.g., `namespace Maliev.RegistryService.Api.Controllers;`).
-- **Var**: Use `var` when the type is obvious from the right-hand side.
-- **Async**: Use `async`/`await` for all I/O operations. Avoid `GetAwaiter().GetResult()`.
+### C# Naming & Formatting
+- **Namespaces**: File-scoped (`namespace Maliev.RegistryService.Api.Controllers;`)
+- **Classes/Methods/Properties**: `PascalCase`
+- **Private fields**: `_camelCase` (underscore prefix)
+- **Parameters/locals**: `camelCase`
+- **Async methods**: Suffix with `Async` (e.g., `GetLocationAsync`)
+- **Interfaces**: Prefix with `I` (e.g., `IThaiRegistryService`)
+- **Permissions**: GCP-style `{domain}.{plural-resource}.{action}` as `public const string` in a `Permissions` static class
+  - Valid: `registry.companies.create`, `registry.locations.read`
+  - Invalid: `registry.company.create` (singular), `registry.create` (missing resource)
+- **XML docs**: Required on ALL public methods and properties
+- **Nullable**: Enabled (`<Nullable>enable</Nullable>`). Use `?` explicitly
+- **Imports**: System first, then third-party, then local. Alphabetize within groups. Remove unused `using`
+- **Braces**: Allman style (new line) for methods and control structures. Expression-bodied for properties/accessors
+- **Indentation**: 4 spaces, LF line endings, UTF-8, trim trailing whitespace
 
-### Naming
-- **Classes/Methods**: PascalCase (e.g., `CompaniesController`, `Search`).
-- **Interfaces**: I-prefix PascalCase (e.g., `IDbdProxyService`).
-- **Private Fields**: `_camelCase` (e.g., `private readonly ILogger _logger;`).
-- **Parameters/Locals**: camelCase.
-
-### Architecture Patterns
-- **Dependency Injection**: Heavy use of Constructor Injection. Register services in `Program.cs`.
-- **Controllers**: Thin controllers. Delegate logic to Services.
-- **Response Wrapper**: Use `ApiResponse<T>` for consistent API responses.
+### C# Patterns
+- **DI**: Constructor injection with `private readonly` fields
+- **Controllers**: `[ApiController]`, `[ApiVersion("1")]`, `[Route("registry/v{version:apiVersion}")]`
+- **Logging**: `ILogger<T>` with structured placeholders (never interpolate): `_logger.LogInformation("Processing {CompanyId}", companyId)`
+- **Error handling**: Global exception middleware. Return `ProblemDetails` / `ErrorResponse` DTOs. Never expose stack traces
+- **Response Wrapper**: Use `ApiResponse<T>` for consistent API responses
   - Success: `return Ok(ApiResponse<T>.CreateSuccess(data));`
   - Error: `return BadRequest(ApiResponse<T>.CreateError("Message"));`
-- **Configuration**: Use `appsettings.json` and Options pattern. Secrets loaded via `AddGoogleSecretManagerVolume` or environment variables.
+- **Configuration**: Use `appsettings.json` and Options pattern. Secrets loaded via `AddGoogleSecretManagerVolume` or environment variables
+- **Manual mapping**: Static extension methods (`ToDto()`, `ToEntity()`). AutoMapper is banned
+- **Validation**: `System.ComponentModel.DataAnnotations` on DTOs. FluentValidation is banned
 
-### Error Handling
-- Use global exception handling where possible, but catch specific exceptions in Controllers for meaningful 4xx/5xx responses.
-- Log exceptions using `ILogger`.
+## Banned Libraries (Build Will Fail)
 
-### Testing Guidelines
-- **Framework**: xUnit.
-- **Naming**: `MethodName_StateUnderTest_ExpectedBehavior`.
-- **Database**: Use **Testcontainers** (PostgreSQL) for integration tests. No InMemoryDatabase (banned by constitution).
-- **Assertions**: Use `Assert` class (e.g., `Assert.NotNull`, `Assert.Equal`).
+| Banned | Use Instead |
+|--------|-------------|
+| AutoMapper | Manual mapping extensions |
+| FluentValidation | DataAnnotations or manual validation |
+| FluentAssertions | Standard xUnit `Assert.*` |
+| Swashbuckle/Swagger | Scalar (at `/registry/scalar`) |
+| InMemoryDatabase (EF Core) | Testcontainers with real PostgreSQL |
+
+## Testing Rules
+
+- **Framework**: xUnit with standard `Assert` (`Assert.Equal`, `Assert.NotNull`, etc.)
+- **Naming**: `MethodName_StateUnderTest_ExpectedBehavior` or `HTTP_METHOD_Path_Scenario_ExpectedStatus`
+- **Coverage**: Minimum 80% per service
+- **Integration tests**: `BaseIntegrationTestFactory<TProgram, TDbContext>` with Testcontainers (PostgreSQL, Redis, RabbitMQ). Never InMemoryDatabase
+- **System tests** (Tier 3): `AspireTestFixture` with `[Collection("AspireDomainTests")]` — shared AppHost, never one per class
+- **Eventual consistency**: Use `TestHelpers.WaitForAsync`. Never `Task.Delay`
+- **MassTransit consumers**: Must have consumer tests using `AddMassTransitTestHarness()`
 
 ### Testing Strategy (4-Tier Pyramid Context)
 
@@ -94,6 +126,19 @@ This service's tests cover **Tier 1 (Unit)** and **Tier 2 (Service Integration)*
 
 > Full ecosystem test strategy: `Maliev.Aspire.Tests/TEST_PLAN.md`
 
+## Mandatory Rules
+
+- **`TreatWarningsAsErrors = true`**: Zero warnings allowed. No suppression
+- **`[RequirePermission("domain.resources.action")]`**: On all endpoints, not plain `[Authorize]`
+- **API versioning**: All routes versioned (`v1/`)
+- **Service prefix**: Routes prefixed with service domain (`/registry`)
+- **Scalar docs**: Configured at `/registry/scalar`
+- **Secrets**: Never hardcoded. Use GCP Secret Manager or environment variables
+- **Async/await**: All the way down. Pass `CancellationToken`
+- **EF Core Design package**: Only in Infrastructure project, never in Api
+- **PostgreSQL xmin**: Shadow property only — `entity.Property<uint>("xmin").HasColumnType("xid").IsRowVersion()`. Never add entity property
+- **Temporary files**: Generate in `/temp` folder, clean up afterwards
+
 ## Key Dependencies
 - `Microsoft.EntityFrameworkCore` & `Npgsql.EntityFrameworkCore.PostgreSQL`
 - `Maliev.Aspire.ServiceDefaults` (Shared infrastructure)
@@ -106,29 +151,21 @@ This service's tests cover **Tier 1 (Unit)** and **Tier 2 (Service Integration)*
 3. [ ] Existing tests pass.
 4. [ ] Public APIs are documented with XML comments (`///`).
 
+## Git Rules
 
-## Git & Version Control — Mandatory Rules
-
-### 🚨 CRITICAL: Always Commit Code Changes (Non-Negotiable)
-- **You MUST commit your changes to the local repository after completing any meaningful unit of work.**
-- **Never accumulate uncommitted changes.** Do not wait until end of session or until something breaks.
-- **Commit early and often** — if a change is meaningful (even a small fix or refactor), commit it.
-- **You do NOT need to push to remote** — local commits are sufficient to protect against accidental loss.
-- **If you are unsure whether to commit, commit anyway.** Extra commits are harmless; lost work is irreversible.
-- This rule applies even if you are just "testing" or "exploring" — use git branches to isolate experimental work and commit those changes too.
-
-### 🚨 CRITICAL: Never Use `git checkout` to Restore Broken Files
-- **NEVER use `git checkout` to restore or recover files.** This operation discards uncommitted changes permanently and will result in data loss.
-- **To undo/recover from broken files: first commit your current changes, then use `git revert` or `git reset --soft` to safely undo.**
+- Each `Maliev.*` folder is an independent git repo. `cd` into it before git commands
+- **Commit early and often** after every meaningful unit of work. Do not accumulate changes
+- **Never use `git checkout` to restore files** — commit first, then `git revert` or `git reset --soft`
+- Feature branches merged to `develop` via PR. Do not push without being asked
 
 ## Database & EF Core — Mandatory Rules
 
 ### EF Core Design Package
-- ❌ `Microsoft.EntityFrameworkCore.Design` MUST NOT be in Api projects
-- ✅ It belongs ONLY in the Infrastructure (or Data) project where migrations live
-- Migration commands must target Infrastructure as both project and startup-project (since EF Core Design package is in Infrastructure):
-  ```
-  dotnet ef migrations add <Name> --project Maliev.<Domain>Service.Infrastructure --startup-project Maliev.<Domain>Service.Infrastructure
+- `Microsoft.EntityFrameworkCore.Design` MUST NOT be in Api projects
+- It belongs ONLY in the Infrastructure project where migrations live
+- Migration commands must target Infrastructure as both project and startup-project:
+  ```powershell
+  dotnet ef migrations add <Name> --project Maliev.RegistryService.Infrastructure --startup-project Maliev.RegistryService.Infrastructure
   ```
 
 ### PostgreSQL xmin Concurrency — Mandatory Pattern
@@ -136,6 +173,6 @@ Use shadow property ONLY. Never add a Xmin/xmin property to domain entities.
 ```csharp
 entity.Property<uint>("xmin").HasColumnType("xid").IsRowVersion();
 ```
-- ❌ Never use `UseXminAsConcurrencyToken()` (removed in Npgsql EF v7)
-- ❌ Never use entity property `public uint Xmin { get; set; }` or `public uint xmin { get; set; }`
-- ❌ Never use `.Ignore(e => e.Xmin)` — remove the entity property instead
+- Never use `UseXminAsConcurrencyToken()` (removed in Npgsql EF v7)
+- Never use entity property `public uint Xmin { get; set; }` or `public uint xmin { get; set; }`
+- Never use `.Ignore(e => e.Xmin)` — remove the entity property instead
