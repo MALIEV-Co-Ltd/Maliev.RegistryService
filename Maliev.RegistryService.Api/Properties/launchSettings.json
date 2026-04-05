@@ -3,9 +3,7 @@
   "profiles": {
     "http": {
       "commandName": "Project",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      },
+      "environmentVariables": {},
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "launchUrl": "registry/scalar",
@@ -13,9 +11,7 @@
     },
     "https": {
       "commandName": "Project",
-      "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
-      },
+      "environmentVariables": {},
       "dotnetRunMessages": true,
       "launchBrowser": true,
       "launchUrl": "registry/scalar",
