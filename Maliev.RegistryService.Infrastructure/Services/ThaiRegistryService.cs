@@ -56,9 +56,9 @@ public class ThaiRegistryService : IThaiRegistryService
         if (string.IsNullOrWhiteSpace(query)) return Enumerable.Empty<ThaiLocation>();
 
         return await _context.ThaiLocations
-            .Where(l => l.DistrictTh.Contains(query) || 
-                        l.SubDistrictTh.Contains(query) || 
-                        l.ProvinceTh.Contains(query) || 
+            .Where(l => l.DistrictTh.Contains(query) ||
+                        l.SubDistrictTh.Contains(query) ||
+                        l.ProvinceTh.Contains(query) ||
                         l.DistrictEn.Contains(query) ||
                         l.SubDistrictEn.Contains(query) ||
                         l.ProvinceEn.Contains(query) ||
@@ -78,7 +78,7 @@ public class ThaiRegistryService : IThaiRegistryService
 
         if (!string.IsNullOrWhiteSpace(postalCode))
             query = query.Where(l => l.PostalCode.StartsWith(postalCode));
-        
+
         if (!string.IsNullOrWhiteSpace(district))
             query = query.Where(l => l.DistrictTh.Contains(district) || l.DistrictEn.Contains(district));
 
