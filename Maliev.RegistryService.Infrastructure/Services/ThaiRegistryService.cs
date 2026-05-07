@@ -80,10 +80,10 @@ public class ThaiRegistryService : IThaiRegistryService
             query = query.Where(l => l.PostalCode.StartsWith(postalCode));
 
         if (!string.IsNullOrWhiteSpace(district))
-            query = query.Where(l => l.DistrictTh.Contains(district) || l.DistrictEn.Contains(district));
+            query = query.Where(l => l.SubDistrictTh.Contains(district) || l.SubDistrictEn.Contains(district));
 
         if (!string.IsNullOrWhiteSpace(city))
-            query = query.Where(l => l.SubDistrictTh.Contains(city) || l.SubDistrictEn.Contains(city));
+            query = query.Where(l => l.DistrictTh.Contains(city) || l.DistrictEn.Contains(city));
 
         if (!string.IsNullOrWhiteSpace(province))
             query = query.Where(l => l.ProvinceTh.Contains(province) || l.ProvinceEn.Contains(province));
