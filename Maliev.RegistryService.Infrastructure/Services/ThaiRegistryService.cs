@@ -1,6 +1,6 @@
-using Maliev.RegistryService.Infrastructure.Persistence;
-using Maliev.RegistryService.Domain.Entities;
 using Maliev.RegistryService.Application.Interfaces;
+using Maliev.RegistryService.Domain.Entities;
+using Maliev.RegistryService.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace Maliev.RegistryService.Infrastructure.Services;
@@ -63,6 +63,11 @@ public class ThaiRegistryService : IThaiRegistryService
                         l.SubDistrictEn.Contains(query) ||
                         l.ProvinceEn.Contains(query) ||
                         l.PostalCode.Contains(query))
+            .OrderBy(l => l.ProvinceTh)
+            .ThenBy(l => l.DistrictTh)
+            .ThenBy(l => l.SubDistrictTh)
+            .ThenBy(l => l.PostalCode)
+            .ThenBy(l => l.Id)
             .Take(limit)
             .ToListAsync();
     }

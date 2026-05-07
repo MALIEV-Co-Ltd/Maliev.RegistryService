@@ -1,8 +1,9 @@
-using Maliev.RegistryService.Infrastructure.Services;
-using Maliev.RegistryService.Infrastructure.Persistence;
-using Maliev.RegistryService.Domain.Entities;
 using Maliev.RegistryService.Application.Interfaces;
+using Maliev.RegistryService.Domain.Entities;
+using Maliev.RegistryService.Infrastructure.Persistence;
+using Maliev.RegistryService.Infrastructure.Services;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Testcontainers.PostgreSql;
 using Xunit;
 
@@ -22,6 +23,7 @@ public class ThaiRegistryServiceTests : IAsyncLifetime
 
         _options = new DbContextOptionsBuilder<RegistryDbContext>()
             .UseNpgsql(_dbContainer.GetConnectionString())
+            .ConfigureWarnings(warnings => warnings.Throw(CoreEventId.RowLimitingOperationWithoutOrderByWarning))
             .Options;
 
         using var context = new RegistryDbContext(_options);
