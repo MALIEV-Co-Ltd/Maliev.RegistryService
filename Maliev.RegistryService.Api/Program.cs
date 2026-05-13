@@ -97,15 +97,11 @@ try
 
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-    // Run database migrations on startup (skip in test environment - test factory handles it)
-    var isTestEnv = app.Environment.IsEnvironment("Testing") || app.Environment.IsEnvironment("Test");
-    if (!isTestEnv)
-    {
-        await app.MigrateDatabaseAsync<RegistryDbContext>();
-    }
+    // AppHost system tests also run with Testing, so the service must own schema creation.
+    await app.MigrateDatabaseAsync<RegistryDbContext>();
 
     // Seed production location data on startup
-    if (app.Environment.IsDevelopment())
+    if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
     {
         try
         {
