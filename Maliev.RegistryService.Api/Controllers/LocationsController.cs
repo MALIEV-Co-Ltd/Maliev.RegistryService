@@ -2,8 +2,9 @@ using Asp.Versioning;
 using Maliev.Aspire.ServiceDefaults.Authorization;
 using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api.Infrastructure;
-using Maliev.RegistryService.Domain.Entities;
+using Maliev.RegistryService.Application.DTOs;
 using Maliev.RegistryService.Application.Interfaces;
+using Maliev.RegistryService.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -26,6 +27,24 @@ public class LocationsController : ControllerBase
     public LocationsController(IThaiRegistryService registryService)
     {
         _registryService = registryService;
+    }
+
+    /// <summary>
+    /// Lists Thai locations for registry data management.
+    /// </summary>
+    /// <param name="query">Optional search text matched against postcode, Thai names, and English names.</param>
+    /// <param name="pageNumber">One-based page number.</param>
+    /// <param name="pageSize">Number of rows per page.</param>
+    /// <returns>A paged list of matching Thai locations.</returns>
+    [RequirePermission(RegistryPermissions.LocationsRead)]
+    [HttpGet]
+    public async Task<ActionResult<ApiResponse<PagedResponse<ThaiLocation>>>> List(
+        [FromQuery] string? query,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 25)
+    {
+        var result = await _registryService.ListAsync(query, pageNumber, pageSize);
+        return Ok(ApiResponse<PagedResponse<ThaiLocation>>.CreateSuccess(result));
     }
 
     /// <summary>

@@ -38,6 +38,27 @@ public class LocationsCrudTests : IClassFixture<RegistryServiceTestFactory>
     }
 
     [Fact]
+    public async Task List_WithPaginationAndSearch_ReturnsMatchingPage()
+    {
+        // Arrange
+        var client = _factory.CreateAuthenticatedClient(permissions: [RegistryPermissions.LocationsRead]);
+
+        // Act
+        var response = await client.GetAsync("/registry/v1/thai/addresses?pageNumber=1&pageSize=2&query=Bangkok");
+
+        // Assert
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<ApiResponse<TestPagedThaiLocationResponse>>();
+        Assert.True(result!.Success);
+        Assert.NotNull(result.Data);
+        Assert.Equal(1, result.Data.PageNumber);
+        Assert.Equal(2, result.Data.PageSize);
+        Assert.True(result.Data.TotalCount > 0);
+        Assert.True(result.Data.Items.Count <= 2);
+        Assert.All(result.Data.Items, location => Assert.Contains("Bangkok", location.ProvinceEn));
+    }
+
+    [Fact]
     public async Task Manage_FullCrudCycle_Success()
     {
         // Arrange
@@ -97,5 +118,16 @@ public class LocationsCrudTests : IClassFixture<RegistryServiceTestFactory>
 
         // Assert
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+    }
+
+    private sealed class TestPagedThaiLocationResponse
+    {
+        public List<ThaiLocation> Items { get; set; } = [];
+
+        public int PageNumber { get; set; }
+
+        public int PageSize { get; set; }
+
+        public int TotalCount { get; set; }
     }
 }
