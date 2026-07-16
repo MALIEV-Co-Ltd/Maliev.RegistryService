@@ -1,25 +1,25 @@
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using Maliev.Aspire.ServiceDefaults.IAM;
 using Maliev.RegistryService.Application.SeedData;
 using Maliev.RegistryService.Infrastructure.Persistence;
+using MassTransit;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using Moq;
 using Testcontainers.PostgreSql;
 using Testcontainers.RabbitMq;
 using Testcontainers.Redis;
 using Xunit;
-using Maliev.Aspire.ServiceDefaults.IAM;
-using Moq;
-using MassTransit;
-using Microsoft.AspNetCore.Http;
 
 namespace Maliev.RegistryService.Tests.Testing;
 
@@ -29,6 +29,8 @@ namespace Maliev.RegistryService.Tests.Testing;
 /// </summary>
 public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    private const string TestAudience = "https://registry.test";
+    private const string TestIssuer = "https://issuer.registry.test";
     private static PostgreSqlContainer? _postgresContainer;
     private static RedisContainer? _redisContainer;
     private static RabbitMqContainer? _rabbitmqContainer;
@@ -146,7 +148,7 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         }
 
         // Export RSA public key for JWT validation in PEM format (then Base64 encoded for AddJwtAuthentication)
-        var publicKeyPem = _testRsa.ExportRSAPublicKeyPem();
+        var publicKeyPem = _testRsa.ExportSubjectPublicKeyInfoPem();
         var publicKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(publicKeyPem));
 
         Environment.SetEnvironmentVariable("Jwt__PublicKey", publicKeyBase64);
@@ -186,7 +188,7 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         builder.ConfigureAppConfiguration((context, config) =>
         {
             // Get public key for configuration
-            var publicKeyPem = _testRsa.ExportRSAPublicKeyPem();
+            var publicKeyPem = _testRsa.ExportSubjectPublicKeyInfoPem();
             var publicKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(publicKeyPem));
 
             // Read connection strings from environment variables (set in InitializeAsync)
@@ -198,8 +200,12 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
             {
                 ["Jwt:SecurityKey"] = _testJwtSecret,
                 ["Jwt:PublicKey"] = publicKeyBase64,
-                ["Jwt:Issuer"] = "test-issuer",
-                ["Jwt:Audience"] = "test-audience",
+                ["Jwt:Issuer"] = TestIssuer,
+                ["Jwt:Audience"] = TestAudience,
+                ["ServiceAuthentication:ClientId"] = "service-registry-service",
+                ["ServiceAuthentication:ClientSecret"] = _testJwtSecret,
+                ["Services:AuthService:BaseUrl"] = "https://auth.test",
+                ["Services:IAMService:BaseUrl"] = "https://iam.test",
                 ["CORS:AllowedOrigins:0"] = "http://localhost:3000",
                 ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000",
                 // Connection strings from environment variables (set after containers start)
@@ -226,8 +232,8 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = "test-issuer",
-                    ValidAudience = "test-audience",
+                    ValidIssuer = TestIssuer,
+                    ValidAudience = TestAudience,
                     IssuerSigningKey = new RsaSecurityKey(_testRsa),
                     ClockSkew = TimeSpan.Zero // No clock skew for tests
                 };
@@ -356,8 +362,8 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         var signingCredentials = new SigningCredentials(rsaSecurityKey, SecurityAlgorithms.RsaSha256);
 
         var token = new JwtSecurityToken(
-            issuer: "test-issuer",
-            audience: "test-audience",
+            issuer: TestIssuer,
+            audience: TestAudience,
             claims: claims,
             expires: DateTime.UtcNow.AddHours(1),
             signingCredentials: signingCredentials
