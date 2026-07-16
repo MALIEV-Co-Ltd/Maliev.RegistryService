@@ -141,6 +141,24 @@ public sealed class ServiceAuthenticationWiringTests
     }
 
     /// <summary>
+    /// The Docker restore layer must include the shared version property before restoring package-mode projects.
+    /// </summary>
+    [Fact]
+    public void Dockerfile_CopiesSharedVersionPropertiesBeforePackageRestore()
+    {
+        var source = ReadRepositoryFile("Maliev.RegistryService.Api", "Dockerfile");
+        var propertiesCopy = source.IndexOf(
+            "COPY [\"Directory.Build.props\", \".\"]",
+            StringComparison.Ordinal);
+        var restore = source.IndexOf(
+            "dotnet restore \"./Maliev.RegistryService.Api/Maliev.RegistryService.Api.csproj\"",
+            StringComparison.Ordinal);
+
+        Assert.True(propertiesCopy >= 0, "Dockerfile must copy Directory.Build.props into the restore layer.");
+        Assert.True(restore > propertiesCopy, "Directory.Build.props must be available before dotnet restore.");
+    }
+
+    /// <summary>
     /// Empty service origins must not shadow ServiceDefaults' environment-aware defaults.
     /// </summary>
     [Theory]

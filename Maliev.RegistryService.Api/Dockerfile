@@ -9,7 +9,8 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-# Copy nuget.config and project files
+# Copy shared build properties, NuGet configuration, and project files used by restore.
+COPY ["Directory.Build.props", "."]
 COPY ["nuget.config", "."]
 COPY ["Maliev.RegistryService.Api/Maliev.RegistryService.Api.csproj", "Maliev.RegistryService.Api/"]
 COPY ["Maliev.RegistryService.Application/Maliev.RegistryService.Application.csproj", "Maliev.RegistryService.Application/"]
@@ -46,4 +47,3 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -f http://localhost:8080/registry/liveness || exit 1
 
 ENTRYPOINT ["dotnet", "Maliev.RegistryService.Api.dll"]
- 
