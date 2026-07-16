@@ -88,7 +88,8 @@ try
     }
 
     // IAM Registration
-    builder.AddIAMServiceClient(RegistryConstants.ServiceName);
+    builder.AddAuthServiceTokenExchange("RegistryService");
+    builder.AddAuthServiceIAMClient();
     builder.Services.AddIAMRegistration<Maliev.RegistryService.Api.Services.RegistryIAMRegistrationService>(RegistryConstants.ServiceName);
 
     builder.Services.AddControllers();
