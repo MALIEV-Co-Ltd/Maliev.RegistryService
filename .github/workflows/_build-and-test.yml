@@ -32,7 +32,7 @@ jobs:
         with:
           repository: MALIEV-Co-Ltd/Maliev.Aspire
           ref: feat/platform-modernization
-          token: ${{ secrets.gitops_pat }}
+          token: ${{ github.token }}
           path: Maliev.Aspire
 
       - name: Checkout Shared Messaging Contracts
@@ -40,7 +40,7 @@ jobs:
         with:
           repository: MALIEV-Co-Ltd/Maliev.MessagingContracts
           ref: develop
-          token: ${{ secrets.gitops_pat }}
+          token: ${{ github.token }}
           path: Maliev.MessagingContracts
 
       - name: Set up .NET
