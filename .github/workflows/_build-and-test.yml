@@ -23,12 +23,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Service
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7.0.0
         with:
           path: service
 
       - name: Checkout Shared Aspire Defaults
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7.0.0
         with:
           repository: MALIEV-Co-Ltd/Maliev.Aspire
           ref: feat/platform-modernization
@@ -36,7 +36,7 @@ jobs:
           path: Maliev.Aspire
 
       - name: Checkout Shared Messaging Contracts
-        uses: actions/checkout@v5
+        uses: actions/checkout@v7.0.0
         with:
           repository: MALIEV-Co-Ltd/Maliev.MessagingContracts
           ref: develop
