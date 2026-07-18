@@ -58,7 +58,7 @@ try
     });
 
     // IAM Registration
-    builder.AddIAMServiceClient("registry");
+    builder.AddIAMServiceClient();
 
     builder.Services.AddControllers();
 
