@@ -1,0 +1,46 @@
+name: Reusable Validation
+on:
+  workflow_call:
+permissions:
+  contents: read
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Registry service
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          path: service
+          persist-credentials: false
+      - name: Checkout shared Aspire defaults
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          repository: MALIEV-Co-Ltd/Maliev.Aspire
+          ref: 25a5c3b2d3d6b5ce8ed485d2d44a28f4dc4c9b51
+          path: Maliev.Aspire
+          persist-credentials: false
+      - name: Checkout shared messaging contracts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          repository: MALIEV-Co-Ltd/Maliev.MessagingContracts
+          ref: 559a00db0c7920a5247fdff60d4476ad23a9a501
+          path: Maliev.MessagingContracts
+          persist-credentials: false
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        working-directory: service
+        run: dotnet restore Maliev.RegistryService.slnx --configfile nuget.validation.config
+      - name: Audit dependencies
+        working-directory: service
+        run: dotnet list Maliev.RegistryService.slnx package --vulnerable --include-transitive --no-restore
+      - name: Build
+        working-directory: service
+        run: dotnet build Maliev.RegistryService.slnx --configuration Release --no-restore
+      - name: Test
+        working-directory: service
+        run: dotnet test Maliev.RegistryService.slnx --configuration Release --no-build --no-restore --verbosity normal
