@@ -1,9 +1,9 @@
+using System.Net;
+using System.Net.Http.Json;
 using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api.Infrastructure;
 using Maliev.RegistryService.Domain.Entities;
 using Maliev.RegistryService.Tests.Testing;
-using System.Net;
-using System.Net.Http.Json;
 using Xunit;
 
 namespace Maliev.RegistryService.Tests.Integration;

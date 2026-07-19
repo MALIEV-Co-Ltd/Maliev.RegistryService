@@ -1,13 +1,13 @@
-using Maliev.RegistryService.Infrastructure.Services;
-using Maliev.RegistryService.Infrastructure.Configuration;
+using System.Text;
+using System.Text.Json;
 using Maliev.RegistryService.Application.DTOs;
 using Maliev.RegistryService.Application.Interfaces;
+using Maliev.RegistryService.Infrastructure.Configuration;
+using Maliev.RegistryService.Infrastructure.Services;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using System.Text;
-using System.Text.Json;
 using Xunit;
 
 namespace Maliev.RegistryService.Tests.Unit;
@@ -125,7 +125,7 @@ public class DbdProxyServiceTests
         var cacheMock = new Mock<IDistributedCache>();
         var loggerMock = new Mock<ILogger<DbdProxyService>>();
         var options = CreateDefaultOptions();
-        
+
         // Should extract "1234567890123" and try to cache lookup
         var service = new DbdProxyService(httpClient, cacheMock.Object, options, loggerMock.Object);
 
@@ -166,7 +166,7 @@ public class DbdProxyServiceTests
         var cacheMock = new Mock<IDistributedCache>();
         var loggerMock = new Mock<ILogger<DbdProxyService>>();
         var options = CreateDefaultOptions();
-        
+
         // Test with tax ID containing dashes should extract only digits
         var service = new DbdProxyService(httpClient, cacheMock.Object, options, loggerMock.Object);
 
