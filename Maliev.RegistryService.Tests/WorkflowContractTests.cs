@@ -36,8 +36,8 @@ public sealed class WorkflowContractTests
         Assert.Contains("name: validate", source, StringComparison.Ordinal);
         Assert.Contains("actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0", source, StringComparison.Ordinal);
         Assert.Contains("actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68", source, StringComparison.Ordinal);
-        Assert.Contains("ref: 6344320b4e8c11e55ebc78107308a80b74f498da", source, StringComparison.Ordinal);
-        Assert.Contains("ref: d633b24f9c02e4da2024bd164f1fb61acf6e6862", source, StringComparison.Ordinal);
+        Assert.Contains("ref: 25a5c3b2d3d6b5ce8ed485d2d44a28f4dc4c9b51", source, StringComparison.Ordinal);
+        Assert.Contains("ref: 559a00db0c7920a5247fdff60d4476ad23a9a501", source, StringComparison.Ordinal);
         Assert.Contains("dotnet-version: 10.0.x", source, StringComparison.Ordinal);
         Assert.Contains("--configfile nuget.validation.config", source, StringComparison.Ordinal);
 

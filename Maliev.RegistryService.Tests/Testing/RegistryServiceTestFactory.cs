@@ -1,21 +1,25 @@
-using Maliev.RegistryService.Data.Context;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+using Maliev.Aspire.ServiceDefaults.IAM;
+using Maliev.RegistryService.Application.SeedData;
+using Maliev.RegistryService.Infrastructure.Persistence;
+using MassTransit;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using System.IdentityModel.Tokens.Jwt;
-using System.Security.Claims;
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using Moq;
 using Testcontainers.PostgreSql;
 using Testcontainers.RabbitMq;
 using Testcontainers.Redis;
 using Xunit;
-using MassTransit;
 
 namespace Maliev.RegistryService.Tests.Testing;
 
@@ -25,6 +29,8 @@ namespace Maliev.RegistryService.Tests.Testing;
 /// </summary>
 public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsyncLifetime
 {
+    private const string TestAudience = "https://registry.test";
+    private const string TestIssuer = "https://issuer.registry.test";
     private static PostgreSqlContainer? _postgresContainer;
     private static RedisContainer? _redisContainer;
     private static RabbitMqContainer? _rabbitmqContainer;
@@ -41,6 +47,8 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
 
         // Set environment variable EARLY so Program.cs picks it up during WebApplication.CreateBuilder
         Environment.SetEnvironmentVariable("ASPNETCORE_ENVIRONMENT", "Testing");
+        Environment.SetEnvironmentVariable("CORS__AllowedOrigins__0", "http://localhost:3000");
+        Environment.SetEnvironmentVariable("CORS_ALLOWED_ORIGINS", "http://localhost:3000");
     }
 
     public async Task InitializeAsync()
@@ -50,13 +58,13 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         {
             if (!_containersStarted)
             {
-                _postgresContainer = new PostgreSqlBuilder("postgres:18-alpine")
+                _postgresContainer = new PostgreSqlBuilder()
                     .Build();
 
-                _redisContainer = new RedisBuilder("redis:8.4-alpine")
+                _redisContainer = new RedisBuilder()
                     .Build();
 
-                _rabbitmqContainer = new RabbitMqBuilder("rabbitmq:4.2-alpine")
+                _rabbitmqContainer = new RabbitMqBuilder()
                     .Build();
 
                 // Start all containers in parallel
@@ -93,6 +101,12 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
                     throw new InvalidOperationException("PostgreSQL Testcontainer failed to become ready after 60 seconds.");
                 }
 
+                // Set connection strings as environment variables AFTER containers start
+                // This ensures they're available when Program.cs reads configuration
+                Environment.SetEnvironmentVariable("ConnectionStrings:RegistryDbContext", _postgresContainer.GetConnectionString());
+                Environment.SetEnvironmentVariable("ConnectionStrings:redis", _redisContainer.GetConnectionString());
+                Environment.SetEnvironmentVariable("ConnectionStrings:rabbitmq", _rabbitmqContainer.GetConnectionString());
+
                 // Wait for Redis to be ready
                 using (var connection = await StackExchange.Redis.ConnectionMultiplexer.ConnectAsync(_redisContainer.GetConnectionString()))
                 {
@@ -110,10 +124,11 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
             _initLock.Release();
         }
 
-        // Set environment variables immediately after containers start
-        Environment.SetEnvironmentVariable("ConnectionStrings__RegistryDbContext", _postgresContainer!.GetConnectionString());
-        Environment.SetEnvironmentVariable("ConnectionStrings__redis", _redisContainer!.GetConnectionString());
-        Environment.SetEnvironmentVariable("ConnectionStrings__rabbitmq", _rabbitmqContainer!.GetConnectionString());
+        // Set environment variables immediately after containers start (for non-web tests)
+        // Note: CreateHost() will also set these for web tests
+        Environment.SetEnvironmentVariable("ConnectionStrings:RegistryDbContext", _postgresContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:redis", _redisContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:rabbitmq", _rabbitmqContainer!.GetConnectionString());
     }
 
     public new async Task DisposeAsync()
@@ -133,37 +148,80 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         }
 
         // Export RSA public key for JWT validation in PEM format (then Base64 encoded for AddJwtAuthentication)
-        var publicKeyPem = _testRsa.ExportRSAPublicKeyPem();
+        var publicKeyPem = _testRsa.ExportSubjectPublicKeyInfoPem();
         var publicKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(publicKeyPem));
-        
+
         Environment.SetEnvironmentVariable("Jwt__PublicKey", publicKeyBase64);
         Environment.SetEnvironmentVariable("Jwt:PublicKey", publicKeyBase64);
 
-        return base.CreateHost(builder);
-    }
+        // Set connection strings as environment variables BEFORE creating host
+        // This ensures they're available when Program.cs calls AddPostgresDbContext
+        Environment.SetEnvironmentVariable("ConnectionStrings:RegistryDbContext", _postgresContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:redis", _redisContainer!.GetConnectionString());
+        Environment.SetEnvironmentVariable("ConnectionStrings:rabbitmq", _rabbitmqContainer!.GetConnectionString());
 
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
+        // Also configure directly in the builder to ensure it's picked up
         builder.ConfigureAppConfiguration((context, config) =>
         {
-            // Get public key for configuration
-            var publicKeyPem = _testRsa.ExportRSAPublicKeyPem();
-            var publicKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(publicKeyPem));
-
             config.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Jwt:SecurityKey"] = _testJwtSecret,
-                ["Jwt:PublicKey"] = publicKeyBase64,
-                ["Jwt:Issuer"] = "test-issuer",
-                ["Jwt:Audience"] = "test-audience",
                 ["ConnectionStrings:RegistryDbContext"] = _postgresContainer!.GetConnectionString(),
                 ["ConnectionStrings:redis"] = _redisContainer!.GetConnectionString(),
                 ["ConnectionStrings:rabbitmq"] = _rabbitmqContainer!.GetConnectionString()
             });
         });
 
+        return base.CreateHost(builder);
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        // Ensure ASPNETCORE_ENVIRONMENT is set for all test hosts (including WithWebHostBuilder children)
+        builder.UseSetting("ENVIRONMENT", "Testing");
+
+        // Wait for containers to be ready before configuring the host
+        if (!_containersStarted)
+        {
+            InitializeAsync().GetAwaiter().GetResult();
+        }
+
+        builder.ConfigureAppConfiguration((context, config) =>
+        {
+            // Get public key for configuration
+            var publicKeyPem = _testRsa.ExportSubjectPublicKeyInfoPem();
+            var publicKeyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(publicKeyPem));
+
+            // Read connection strings from environment variables (set in InitializeAsync)
+            var connStr = Environment.GetEnvironmentVariable("ConnectionStrings:RegistryDbContext");
+            var redisConn = Environment.GetEnvironmentVariable("ConnectionStrings:redis");
+            var rabbitConn = Environment.GetEnvironmentVariable("ConnectionStrings:rabbitmq");
+
+            config.AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Jwt:SecurityKey"] = _testJwtSecret,
+                ["Jwt:PublicKey"] = publicKeyBase64,
+                ["Jwt:Issuer"] = TestIssuer,
+                ["Jwt:Audience"] = TestAudience,
+                ["ServiceAuthentication:ClientId"] = "service-registry-service",
+                ["ServiceAuthentication:ClientSecret"] = _testJwtSecret,
+                ["Services:AuthService:BaseUrl"] = "https://auth.test",
+                ["Services:IAMService:BaseUrl"] = "https://iam.test",
+                ["CORS:AllowedOrigins:0"] = "http://localhost:3000",
+                ["CORS_ALLOWED_ORIGINS"] = "http://localhost:3000",
+                // Connection strings from environment variables (set after containers start)
+                ["ConnectionStrings:RegistryDbContext"] = connStr,
+                ["ConnectionStrings:redis"] = redisConn,
+                ["ConnectionStrings:rabbitmq"] = rabbitConn
+            });
+        });
+
         builder.ConfigureTestServices(services =>
         {
+            // Override the DbContext with the test container connection string
+            var connStr = _postgresContainer!.GetConnectionString();
+            services.AddDbContext<RegistryDbContext>(options =>
+                options.UseNpgsql(connStr));
+
             // Configure JWT Bearer authentication with test RSA key
             services.PostConfigureAll<Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerOptions>(options =>
             {
@@ -174,8 +232,8 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = "test-issuer",
-                    ValidAudience = "test-audience",
+                    ValidIssuer = TestIssuer,
+                    ValidAudience = TestAudience,
                     IssuerSigningKey = new RsaSecurityKey(_testRsa),
                     ClockSkew = TimeSpan.Zero // No clock skew for tests
                 };
@@ -183,6 +241,15 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
 
             // Add MassTransit test harness for testing message publishing/consuming
             services.AddMassTransitTestHarness();
+
+            // Mock IAM service client to check permissions against JWT claims in integration tests
+            services.AddScoped<IIamServiceClient>(sp =>
+            {
+                var mockIam = new Mock<IIamServiceClient>();
+                mockIam.Setup(x => x.CheckPermissionAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string?>(), It.IsAny<CancellationToken>()))
+                    .ReturnsAsync(false); // Return false to force fallback to JWT claims in tests
+                return mockIam.Object;
+            });
         });
     }
 
@@ -213,6 +280,14 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
     {
         await using var context = CreateDbContext();
         await context.Database.MigrateAsync();
+
+        // Seed test data if database is empty
+        if (!await context.ThaiLocations.AnyAsync())
+        {
+            var locations = ThaiLocationData.GetLocations();
+            await context.ThaiLocations.AddRangeAsync(locations);
+            await context.SaveChangesAsync();
+        }
     }
 
     /// <summary>
@@ -287,8 +362,8 @@ public class RegistryServiceTestFactory : WebApplicationFactory<Program>, IAsync
         var signingCredentials = new SigningCredentials(rsaSecurityKey, SecurityAlgorithms.RsaSha256);
 
         var token = new JwtSecurityToken(
-            issuer: "test-issuer",
-            audience: "test-audience",
+            issuer: TestIssuer,
+            audience: TestAudience,
             claims: claims,
             expires: DateTime.UtcNow.AddHours(1),
             signingCredentials: signingCredentials

@@ -1,5 +1,14 @@
-using Maliev.RegistryService.Data.Context;
-using Maliev.RegistryService.Data.Services;
+using Maliev.Aspire.ServiceDefaults;
+using Maliev.RegistryService.Api;
+using Maliev.RegistryService.Application;
+using Maliev.RegistryService.Application.Interfaces;
+using Maliev.RegistryService.Application.SeedData;
+using Maliev.RegistryService.Infrastructure;
+using Maliev.RegistryService.Infrastructure.Configuration;
+using Maliev.RegistryService.Infrastructure.Persistence;
+using Maliev.RegistryService.Infrastructure.Services;
+using Microsoft.EntityFrameworkCore;
+
 
 // Initialize bootstrap logging
 using var loggerFactory = LoggerFactory.Create(logBuilder => logBuilder.AddConsole());
@@ -10,6 +19,24 @@ try
     Log.StartingHost(bootstrapLogger, "Registry Service");
 
     var builder = WebApplication.CreateBuilder(args);
+
+    // For test environment, read connection strings from environment variables set by test factory
+    // This must be done BEFORE AddPostgresDbContext reads the connection string
+    var envConnStr = Environment.GetEnvironmentVariable("ConnectionStrings:RegistryDbContext");
+    if (!string.IsNullOrEmpty(envConnStr))
+    {
+        builder.Configuration["ConnectionStrings:RegistryDbContext"] = envConnStr;
+    }
+    var envRedis = Environment.GetEnvironmentVariable("ConnectionStrings:redis");
+    if (!string.IsNullOrEmpty(envRedis))
+    {
+        builder.Configuration["ConnectionStrings:redis"] = envRedis;
+    }
+    var envRabbit = Environment.GetEnvironmentVariable("ConnectionStrings:rabbitmq");
+    if (!string.IsNullOrEmpty(envRabbit))
+    {
+        builder.Configuration["ConnectionStrings:rabbitmq"] = envRabbit;
+    }
 
     // --- Secrets & Configuration ---
     builder.AddGoogleSecretManagerVolume(); // Load secrets from /mnt/secrets if available
@@ -24,19 +51,33 @@ try
     builder.AddPostgresDbContext<RegistryDbContext>(connectionName: "RegistryDbContext"); // PostgreSQL with retry logic
 
     // Add Cache Service (standardized via ServiceDefaults)
-    builder.AddRedisDistributedCache(instanceName: "registry:");
+    builder.AddStandardCache("registry:"); // Redis + in-memory fallback, memory-optimized
     builder.Services.AddMemoryCache();
 
     // MassTransit with RabbitMQ
     builder.AddMassTransitWithRabbitMq();
 
     // --- API Configuration ---
-    builder.AddDefaultCors(); // CORS from CORS:AllowedOrigins config
+    builder.AddStandardCors(); // CORS with fail-fast validation
     builder.AddDefaultApiVersioning(); // API versioning with URL segment reader
     builder.Services.AddResponseCaching();
 
     // JWT Authentication (tests override via PostConfigureAll with dynamic RSA keys)
     builder.AddJwtAuthentication();
+
+    // --- Authorization & Permissions ---
+    builder.Services.AddPermissionAuthorization();
+
+    // --- Layer Registration ---
+    builder.Services.AddApplication();
+    builder.Services.AddInfrastructure(builder.Configuration);
+
+    // Company registry providers (Creden primary + BDEX fallback) — see Infrastructure/DependencyInjection.cs
+    builder.Services.Configure<BdexApiOptions>(
+        builder.Configuration.GetSection(BdexApiOptions.SectionName));
+
+    builder.Services.AddInfrastructureHttpClients(builder.Configuration);
+
 
     // Add OpenAPI (must be in Program.cs for XML comments to work via source generator)
     if (!builder.Environment.IsProduction())
@@ -46,19 +87,10 @@ try
             description: "Thai business registry and location data service. Provides Thai administrative divisions (provinces, districts, subdistricts), postal codes, DBD company lookups, and address autocomplete functionality.");
     }
 
-    // Add Domain Services
-    builder.Services.AddScoped<IThaiRegistryService, ThaiRegistryService>();
-    builder.Services.AddHttpClient<IDbdProxyService, DbdProxyService>(client =>
-    {
-        client.Timeout = TimeSpan.FromSeconds(15);
-    }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-    {
-        UseCookies = true,
-        CookieContainer = new System.Net.CookieContainer()
-    });
-
     // IAM Registration
-    builder.AddIAMServiceClient();
+    builder.AddAuthServiceTokenExchange("RegistryService");
+    builder.AddAuthServiceIAMClient();
+    builder.Services.AddIAMRegistration<Maliev.RegistryService.Api.Services.RegistryIAMRegistrationService>(RegistryConstants.ServiceName);
 
     builder.Services.AddControllers();
 
@@ -66,8 +98,39 @@ try
 
     var logger = app.Services.GetRequiredService<ILogger<Program>>();
 
-    // Run database migrations on startup
+    // AppHost system tests also run with Testing, so the service must own schema creation.
     await app.MigrateDatabaseAsync<RegistryDbContext>();
+
+    // Seed production location data on startup
+    if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+    {
+        try
+        {
+            using var scope = app.Services.CreateScope();
+            var context = scope.ServiceProvider.GetRequiredService<RegistryDbContext>();
+
+            if (!await context.ThaiLocations.AnyAsync() || args.Contains("--seed"))
+            {
+                logger.LogInformation("Seeding Thai locations...");
+
+                if (args.Contains("--seed"))
+                {
+                    context.ThaiLocations.RemoveRange(context.ThaiLocations);
+                    await context.SaveChangesAsync();
+                }
+
+                var locations = ThaiLocationData.GetLocations();
+                await context.ThaiLocations.AddRangeAsync(locations);
+                await context.SaveChangesAsync();
+
+                logger.LogInformation("Seeded {Count} Thai locations successfully.", locations.Length);
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to seed Thai locations");
+        }
+    }
 
     app.UseStandardMiddleware();
     if (!app.Environment.IsDevelopment())
@@ -97,7 +160,6 @@ try
 catch (Exception ex)
 {
     Log.HostTerminated(bootstrapLogger, ex, "Registry Service");
-    // Force flush to ensure Aspire captures the error before process exits
     Console.Out.Flush();
     Console.Error.Flush();
     throw;
@@ -108,7 +170,7 @@ finally
 }
 
 /// <summary>
-/// Main entry point for the Maliev Registry Service API.
+/// Main program class for the application
 /// </summary>
 public partial class Program
 {

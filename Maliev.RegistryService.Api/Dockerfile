@@ -9,10 +9,13 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-# Copy nuget.config and project files
+# Copy shared build properties, NuGet configuration, and project files used by restore.
+COPY ["Directory.Build.props", "."]
 COPY ["nuget.config", "."]
 COPY ["Maliev.RegistryService.Api/Maliev.RegistryService.Api.csproj", "Maliev.RegistryService.Api/"]
-COPY ["Maliev.RegistryService.Data/Maliev.RegistryService.Data.csproj", "Maliev.RegistryService.Data/"]
+COPY ["Maliev.RegistryService.Application/Maliev.RegistryService.Application.csproj", "Maliev.RegistryService.Application/"]
+COPY ["Maliev.RegistryService.Domain/Maliev.RegistryService.Domain.csproj", "Maliev.RegistryService.Domain/"]
+COPY ["Maliev.RegistryService.Infrastructure/Maliev.RegistryService.Infrastructure.csproj", "Maliev.RegistryService.Infrastructure/"]
 
 # Restore with GitHub Packages authentication using BuildKit secrets
 # We set GITHUB_ACTIONS=true to trigger PackageReference usage in csproj
