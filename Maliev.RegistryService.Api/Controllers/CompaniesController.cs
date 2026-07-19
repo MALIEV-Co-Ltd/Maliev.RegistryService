@@ -1,55 +1,92 @@
 using Asp.Versioning;
+using Maliev.Aspire.ServiceDefaults.Authorization;
+using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api.Infrastructure;
-using Maliev.RegistryService.Data.Models;
-using Maliev.RegistryService.Data.Services;
+using Maliev.RegistryService.Application.DTOs;
+using Maliev.RegistryService.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Maliev.RegistryService.Api.Controllers;
 
 /// <summary>
-/// Controller for company registry lookups.
+/// Controller for Thai company registry lookups.
+/// Uses Creden.co as the primary provider with BDEX (api.dbd.go.th) as fallback.
 /// </summary>
-[ApiVersion("1.0")]
-[Route("registry/v1/thai/companies")]
+[ApiVersion("1")]
+[Route("registry/v{version:apiVersion}/thai/companies")]
 [ApiController]
 public class CompaniesController : ControllerBase
 {
-    private readonly IDbdProxyService _dbdService;
+    private readonly IThaiCompanyRegistryService _registryService;
+    private readonly ILogger<CompaniesController> _logger;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="CompaniesController"/> class.
     /// </summary>
-    /// <param name="dbdService">The DBD proxy service.</param>
-    public CompaniesController(IDbdProxyService dbdService)
+    /// <param name="registryService">The Thai company registry service.</param>
+    /// <param name="logger">Logger instance.</param>
+    public CompaniesController(
+        IThaiCompanyRegistryService registryService,
+        ILogger<CompaniesController> logger)
     {
-        _dbdService = dbdService;
+        _registryService = registryService;
+        _logger = logger;
     }
 
     /// <summary>
-    /// Look up company profiles by query.
+    /// Search for Thai companies by name or tax ID.
     /// </summary>
-    /// <param name="query">The search query.</param>
-    /// <param name="limit">The maximum number of results to return.</param>
+    /// <param name="query">The search query (company name or 13-digit tax ID).</param>
+    /// <param name="limit">The maximum number of results to return (default: 10).</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>A list of matching company profiles.</returns>
-    [HttpGet("lookup")]
-    [ResponseCache(Duration = 300, VaryByQueryKeys = new[] { "query", "limit" })]
-    public async Task<ActionResult<ApiResponse<IEnumerable<CompanyProfile>>>> Lookup(
-        [FromQuery] string query, 
-        [FromQuery] int limit = 5)
+    /// <response code="200">Returns the list of matching companies.</response>
+    /// <response code="400">If the query parameter is missing or invalid.</response>
+    /// <response code="500">If the external service is unavailable.</response>
+    [RequirePermission(RegistryPermissions.CompaniesRead)]
+    [HttpGet("search")]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<CompanyProfile>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<CompanyProfile>>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<IEnumerable<CompanyProfile>>), StatusCodes.Status500InternalServerError)]
+    public async Task<ActionResult<ApiResponse<IEnumerable<CompanyProfile>>>> Search(
+        [FromQuery] string query,
+        [FromQuery] int limit = 10,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
-            return BadRequest(ApiResponse<IEnumerable<CompanyProfile>>.CreateError("Query parameter is required."));
+            return BadRequest(ApiResponse<IEnumerable<CompanyProfile>>.CreateError(
+                "Query parameter is required."));
+        }
+
+        if (limit < 1 || limit > 100)
+        {
+            return BadRequest(ApiResponse<IEnumerable<CompanyProfile>>.CreateError(
+                "Limit must be between 1 and 100."));
         }
 
         try
         {
-            var results = await _dbdService.LookupAsync(query, limit);
-            return Ok(ApiResponse<IEnumerable<CompanyProfile>>.CreateSuccess(results));
+            var results = await _registryService.SearchCompaniesAsync(query, cancellationToken);
+
+            // Apply limit on the results
+            var limitedResults = results.Take(limit);
+
+            return Ok(ApiResponse<IEnumerable<CompanyProfile>>.CreateSuccess(limitedResults));
         }
-        catch (Exception)
+        catch (InvalidOperationException ex)
         {
-            return StatusCode(503, ApiResponse<IEnumerable<CompanyProfile>>.CreateError("Upstream service is currently unavailable."));
+            _logger.LogError(ex, "Error searching companies for query: {Query}", query);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                ApiResponse<IEnumerable<CompanyProfile>>.CreateError(
+                    "External company registry service is temporarily unavailable. Please try again later."));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Unexpected error searching companies for query: {Query}", query);
+            return StatusCode(StatusCodes.Status500InternalServerError,
+                ApiResponse<IEnumerable<CompanyProfile>>.CreateError(
+                    "An unexpected error occurred while searching for companies."));
         }
     }
 }
