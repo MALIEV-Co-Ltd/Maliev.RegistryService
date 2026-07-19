@@ -47,7 +47,9 @@ jobs:
           -p:ServiceDefaultsVersion=${{ env.SERVICE_DEFAULTS_VERSION }}
       - name: Audit dependencies
         working-directory: service
-        run: dotnet list Maliev.RegistryService.slnx package --vulnerable --include-transitive --no-restore
+        run: >-
+          dotnet list Maliev.RegistryService.slnx package --vulnerable --include-transitive
+          --no-restore --configfile nuget.validation.config
       - name: Build
         working-directory: service
         run: >-
