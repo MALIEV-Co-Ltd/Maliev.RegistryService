@@ -1,6 +1,6 @@
 using Maliev.Aspire.ServiceDefaults.IAM;
-using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api;
+using Maliev.RegistryService.Api.Authorization;
 
 namespace Maliev.RegistryService.Api.Services;
 

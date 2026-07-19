@@ -1,17 +1,16 @@
-using Maliev.RegistryService.Infrastructure.Services;
+using System.Net;
+using System.Net.Http.Json;
 using Maliev.RegistryService.Api.Authorization;
 using Maliev.RegistryService.Api.Infrastructure;
-
-using Maliev.RegistryService.Domain.Entities;
 using Maliev.RegistryService.Application.DTOs;
 using Maliev.RegistryService.Application.Interfaces;
+using Maliev.RegistryService.Domain.Entities;
+using Maliev.RegistryService.Infrastructure.Services;
 using Maliev.RegistryService.Tests.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Moq;
-using System.Net;
-using System.Net.Http.Json;
 using Xunit;
 
 namespace Maliev.RegistryService.Tests.Integration;

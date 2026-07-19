@@ -1,7 +1,7 @@
 using Maliev.RegistryService.Api.Controllers;
 using Maliev.RegistryService.Api.Infrastructure;
-using Maliev.RegistryService.Domain.Entities;
 using Maliev.RegistryService.Application.Interfaces;
+using Maliev.RegistryService.Domain.Entities;
 using Microsoft.AspNetCore.Mvc;
 using Moq;
 using Xunit;

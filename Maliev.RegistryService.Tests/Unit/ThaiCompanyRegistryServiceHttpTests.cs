@@ -1,13 +1,13 @@
+using System.Net;
+using System.Text;
+using Maliev.RegistryService.Application.DTOs;
+using Maliev.RegistryService.Application.Interfaces;
 using Maliev.RegistryService.Infrastructure.Configuration;
 using Maliev.RegistryService.Infrastructure.Services;
-using Maliev.RegistryService.Application.Interfaces;
-using Maliev.RegistryService.Application.DTOs;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Moq;
-using System.Net;
-using System.Text;
 using Xunit;
 
 namespace Maliev.RegistryService.Tests.Unit;

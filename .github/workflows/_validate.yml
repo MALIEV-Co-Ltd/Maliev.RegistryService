@@ -1,0 +1,66 @@
+name: Reusable Validation
+on:
+  workflow_call:
+permissions:
+  contents: read
+env:
+  SHARED_LIBRARY_VERSION: 1.0.96-alpha
+  SERVICE_DEFAULTS_VERSION: 1.0.89-alpha
+jobs:
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout Registry service
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          path: service
+          persist-credentials: false
+      - name: Checkout shared Aspire defaults
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          repository: MALIEV-Co-Ltd/Maliev.Aspire
+          ref: 25a5c3b2d3d6b5ce8ed485d2d44a28f4dc4c9b51
+          path: Maliev.Aspire
+          persist-credentials: false
+      - name: Checkout shared messaging contracts
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          repository: MALIEV-Co-Ltd/Maliev.MessagingContracts
+          ref: 559a00db0c7920a5247fdff60d4476ad23a9a501
+          path: Maliev.MessagingContracts
+          persist-credentials: false
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68
+        with:
+          dotnet-version: 10.0.x
+      - name: Build exact shared packages
+        working-directory: service
+        run: bash scripts/prepare-registry-ci-packages.sh
+      - name: Restore
+        working-directory: service
+        run: >-
+          dotnet restore Maliev.RegistryService.slnx --configfile nuget.validation.config
+          -p:GITHUB_ACTIONS=true
+          -p:SharedLibraryVersion=${{ env.SHARED_LIBRARY_VERSION }}
+          -p:ServiceDefaultsVersion=${{ env.SERVICE_DEFAULTS_VERSION }}
+      - name: Audit dependencies
+        working-directory: service
+        run: >-
+          dotnet list Maliev.RegistryService.slnx package --vulnerable --include-transitive
+          --no-restore --configfile nuget.validation.config
+      - name: Build
+        working-directory: service
+        run: >-
+          dotnet build Maliev.RegistryService.slnx --configuration Release --no-restore
+          -p:GITHUB_ACTIONS=true
+          -p:SharedLibraryVersion=${{ env.SHARED_LIBRARY_VERSION }}
+          -p:ServiceDefaultsVersion=${{ env.SERVICE_DEFAULTS_VERSION }}
+      - name: Test
+        working-directory: service
+        run: >-
+          dotnet test Maliev.RegistryService.slnx --configuration Release --no-build --no-restore --verbosity normal
+          -p:GITHUB_ACTIONS=true
+          -p:SharedLibraryVersion=${{ env.SHARED_LIBRARY_VERSION }}
+          -p:ServiceDefaultsVersion=${{ env.SERVICE_DEFAULTS_VERSION }}
