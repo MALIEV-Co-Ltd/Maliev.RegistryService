@@ -13,19 +13,19 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout Registry service
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           path: service
           persist-credentials: false
       - name: Checkout shared Aspire defaults
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: MALIEV-Co-Ltd/Maliev.Aspire
           ref: 25a5c3b2d3d6b5ce8ed485d2d44a28f4dc4c9b51
           path: Maliev.Aspire
           persist-credentials: false
       - name: Checkout shared messaging contracts
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: MALIEV-Co-Ltd/Maliev.MessagingContracts
           ref: 559a00db0c7920a5247fdff60d4476ad23a9a501
